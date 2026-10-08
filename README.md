@@ -265,9 +265,11 @@ Use `npm run inspect` to try the tools in the MCP Inspector.
 
 ## 🗺️ Roadmap
 
-- 📅 Calendar support (`Calendars.ReadWrite`)
+This server is about mail only; calendar and other Microsoft 365 data are out of scope.
+
+- 🔎 Bulk actions by search (e.g. archive everything from a sender before a date)
 - 📦 Large attachments through upload sessions
-- 👥 Contacts
+- 👥 Contact lookup to fill in recipients
 
 ## 🤝 Contributing
 
