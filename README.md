@@ -135,6 +135,8 @@ Restart Claude Desktop afterwards. Use `npm run inspect` to try the tools in the
 | `forward_message` | yes | Forward to new recipients. |
 | `move_message` | yes | Move to a folder; returns the new id. |
 | `mark_read` | yes | Mark read or unread. |
+| `get_unsubscribe_info` | no | Show how to leave the mailing list a message came from (List-Unsubscribe). |
+| `unsubscribe` | yes | Leave a mailing list: RFC 8058 one-click, else a mailto request, else returns the link. |
 | `flag_message` | yes | `flagged`, `complete` or `notFlagged`. |
 | `delete_message` | yes | Move to Deleted Items, or `permanent: true` to delete irreversibly. |
 
