@@ -4,6 +4,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
+/**
+ * Shared public-client app registration for personal Microsoft accounts. It has no
+ * secret: tokens are issued to each user and stay on their machine. Set
+ * OUTLOOK_CLIENT_ID to use your own app registration instead.
+ */
+export const DEFAULT_CLIENT_ID = '056314dd-a452-4fee-8971-77459938c7b7';
+
 export interface Config {
   clientId: string;
   tenant: string;
@@ -17,7 +24,7 @@ export interface Config {
 }
 
 const schema = z.object({
-  OUTLOOK_CLIENT_ID: z.string({ error: 'OUTLOOK_CLIENT_ID is required (see README: Azure app registration)' }).trim().min(1, 'OUTLOOK_CLIENT_ID is required (see README: Azure app registration)'),
+  OUTLOOK_CLIENT_ID: z.string().trim().optional().transform((v) => v || DEFAULT_CLIENT_ID),
   OUTLOOK_TENANT: z.string().trim().min(1).default('consumers'),
   OUTLOOK_SCOPES: z.string().trim().min(1).default('User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access'),
   OUTLOOK_TOKEN_CACHE: z.string().trim().optional(),

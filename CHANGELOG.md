@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-08
+
+### Added
+
+- Published to npm as `@pepebits/outlook-mcp`: install with `npx -y @pepebits/outlook-mcp`.
+- Shared default Azure app for personal Microsoft accounts, so no app registration or `.env` file is needed.
+
+### Changed
+
+- `OUTLOOK_CLIENT_ID` is now optional. Set it (and `OUTLOOK_TENANT`) only to use your own Azure app, for example with work or school accounts.
+
 ### Fixed
 
 - `create_rule` and `block_sender` return the rule that was created. On personal mailboxes Graph's response could describe a different, existing rule.

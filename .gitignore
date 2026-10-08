@@ -6,3 +6,4 @@ token-cache.json
 *.token-cache.json
 .outlook-mcp/
 coverage/
+.DS_Store

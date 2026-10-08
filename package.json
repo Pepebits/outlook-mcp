@@ -1,6 +1,6 @@
 {
-  "name": "outlook-mcp",
-  "version": "0.2.0",
+  "name": "@pepebits/outlook-mcp",
+  "version": "0.3.0",
   "description": "MCP server for Outlook / Microsoft 365 mail via Microsoft Graph (device code auth)",
   "type": "module",
   "license": "MIT",
@@ -25,7 +25,8 @@
     "logout": "tsx src/index.ts logout",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
   },
   "keywords": [
     "mcp",
@@ -56,5 +57,9 @@
   "homepage": "https://github.com/Pepebits/outlook-mcp#readme",
   "bugs": {
     "url": "https://github.com/Pepebits/outlook-mcp/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
   }
 }

@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/banner.png" alt="outlook-mcp" width="720"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Pepebits/outlook-mcp/main/docs/banner.png" alt="outlook-mcp" width="720"></p>
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude (and any MCP client) read, search, send and organize your **Outlook / Microsoft 365 / Outlook.com** mail through the Microsoft Graph API.
 
@@ -22,10 +22,77 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 ## 📋 Requirements
 
 - Node.js **24 (LTS) or newer**
-- A Microsoft account (personal, work or school)
-- An Azure app registration (free, see below)
+- A Microsoft account (personal works out of the box; work or school needs [your own Azure app](#️-use-your-own-azure-app-optional))
 
-## 🏗️ Azure app registration (step by step)
+## 🚀 Quick start
+
+No terminal sign-in and no Azure setup needed. You only need Node.js 24+.
+
+### Claude Code
+
+```bash
+claude mcp add outlook --scope user -- npx -y @pepebits/outlook-mcp
+```
+
+### Claude Desktop
+
+Add to `claude_desktop_config.json` and restart Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "outlook": {
+      "command": "npx",
+      "args": ["-y", "@pepebits/outlook-mcp"]
+    }
+  }
+}
+```
+
+### Sign in
+
+Ask your assistant to *"log in to Outlook"*. The `login` tool returns a URL and a one-time code: open the URL, enter the code and accept. Prefer a terminal? Run `npx -y @pepebits/outlook-mcp auth` instead.
+
+By default the server uses the shared **outlook-mcp** Azure app, which supports **personal Microsoft accounts** (outlook.com, hotmail, live). The consent screen may show an *unverified publisher* warning. No data passes through any server of ours: the server talks to Microsoft Graph directly from your machine and your tokens stay in the local token cache. For work or school accounts, or to use your own app, see [Use your own Azure app](#️-use-your-own-azure-app-optional).
+
+## ⚙️ Configuration (`.env`)
+
+The `.env` file is optional. Variables are read from `.env` in the current directory and in the package directory, and real environment variables override it. You can also pass them through your MCP client's env block, e.g. `claude mcp add outlook --scope user -e OUTLOOK_TENANT=organizations -e OUTLOOK_CLIENT_ID=your-client-id -- npx -y @pepebits/outlook-mcp`.
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `OUTLOOK_CLIENT_ID` | shared outlook-mcp app | Application (client) ID of your own Azure app registration (optional). |
+| `OUTLOOK_TENANT` | `consumers` | Authority tenant: `consumers` (personal), `organizations` (work/school), `common` (both) or a tenant GUID. |
+| `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access` | Space-separated delegated Graph scopes requested at sign-in. |
+| `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Where the MSAL token cache is stored (file mode `0600`). |
+| `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered at all. |
+| `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` | The only directory attachments may be written to. |
+| `OUTLOOK_DEFAULT_TOP` | `20` | Default page size for list/search tools (1-100). |
+| `OUTLOOK_MAX_BODY_CHARS` | `20000` | Maximum body characters returned by `get_message`. |
+| `OUTLOOK_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Graph endpoint (change for national clouds). |
+| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` (written to stderr). |
+
+## 🔐 Authentication
+
+```bash
+npx -y @pepebits/outlook-mcp auth      # device code sign-in; prints a URL and a code
+npx -y @pepebits/outlook-mcp whoami    # silent token + GET /me
+npx -y @pepebits/outlook-mcp logout    # removes accounts and deletes the token cache file
+```
+
+You can also sign in without a terminal. Just ask your assistant to *"log in to Outlook"*:
+
+- 🔑 `login` returns a URL and a one-time code. Open the URL, enter the code and accept; sign-in finishes in the background.
+- ✅ `auth_status` tells you whether you are signed in, still waiting, or signed out.
+- 🚪 `logout` removes the cached account and the token cache file.
+
+Use `login` with `force: true` to sign in again, for example after adding a permission in Azure. If the session is missing or expired, tools return *"Not signed in or session expired. Call the login tool ..."*.
+
+## 🛠️ Use your own Azure app (optional)
+
+By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works with personal Microsoft accounts only. Register your own app if you need **work or school** accounts or simply prefer to use your own. Then set `OUTLOOK_CLIENT_ID` (and `OUTLOOK_TENANT`, see below).
+
+### Step by step
 
 1. Open [portal.azure.com](https://portal.azure.com) and go to **Microsoft Entra ID** -> **App registrations** -> **New registration**.
 2. Give it a name (for example `outlook-mcp`).
@@ -50,92 +117,12 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 | `MailboxSettings.ReadWrite` | Inbox rules: `list_rules`, `create_rule`, `delete_rule`, `block_sender` |
 | `offline_access` | Refresh token, so you only sign in once |
 
-> 💡 If you upgrade from 0.1.0, add `MailboxSettings.ReadWrite` in Azure and run `npm run auth` again.
+> 💡 If you upgrade from 0.1.0, add `MailboxSettings.ReadWrite` in Azure and run `login` with `force: true` (or `npx -y @pepebits/outlook-mcp auth`) again.
 
 > 💡 The Azure portal may be shown in your language, so labels can differ slightly (e.g. *Administrar* -> *Autenticación* -> *Configuración*, *Permisos de OpenId*).
 7. From the **Overview** page copy the **Application (client) ID**. This is your `OUTLOOK_CLIENT_ID`.
 
-> 🏢 **Work or school accounts:** set `OUTLOOK_TENANT=organizations` (or your tenant GUID). Your organization may require **admin consent** for the mail permissions.
-
-## 🚀 Installation
-
-```bash
-git clone <your-fork-or-this-repo-url> outlook-mcp
-cd outlook-mcp
-npm install
-cp .env.example .env        # then set OUTLOOK_CLIENT_ID in .env
-npm run build
-npm run auth                # follow the device code instructions
-npm run whoami              # verify the sign-in
-```
-
-## ⚙️ Configuration (`.env`)
-
-Variables are read from `.env` in the current directory and in the package directory (so launching with an absolute path works from anywhere). Real environment variables override `.env`.
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `OUTLOOK_CLIENT_ID` | _(required)_ | Application (client) ID of your Azure app registration. |
-| `OUTLOOK_TENANT` | `consumers` | Authority tenant: `consumers` (personal), `organizations` (work/school), `common` (both) or a tenant GUID. |
-| `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access` | Space-separated delegated Graph scopes requested at sign-in. |
-| `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Where the MSAL token cache is stored (file mode `0600`). |
-| `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered at all. |
-| `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` | The only directory attachments may be written to. |
-| `OUTLOOK_DEFAULT_TOP` | `20` | Default page size for list/search tools (1-100). |
-| `OUTLOOK_MAX_BODY_CHARS` | `20000` | Maximum body characters returned by `get_message`. |
-| `OUTLOOK_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Graph endpoint (change for national clouds). |
-| `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` (written to stderr). |
-
-## 🔐 Authentication
-
-```bash
-npm run auth      # device code sign-in; prints a URL and a code to stderr
-npm run whoami    # silent token + GET /me
-npm run logout    # removes accounts and deletes the token cache file
-```
-
-You can also sign in without a terminal. Just ask your assistant to *"log in to Outlook"*:
-
-- 🔑 `login` returns a URL and a one-time code. Open the URL, enter the code and accept; sign-in finishes in the background.
-- ✅ `auth_status` tells you whether you are signed in, still waiting, or signed out.
-- 🚪 `logout` removes the cached account and the token cache file.
-
-Use `login` with `force: true` to sign in again, for example after adding a permission in Azure. If the session is missing or expired, tools return *"Not signed in or session expired. Call the login tool ..."*.
-
-## 🤖 Using with Claude
-
-### Claude Code
-
-```bash
-claude mcp add outlook --scope user -- node /absolute/path/outlook-mcp/dist/index.js
-
-# or pass settings explicitly instead of relying on .env
-claude mcp add outlook --scope user \
-  -e OUTLOOK_CLIENT_ID=your-client-id \
-  -e OUTLOOK_TENANT=consumers \
-  -- node /absolute/path/outlook-mcp/dist/index.js
-```
-
-### Claude Desktop
-
-Add to `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "outlook": {
-      "command": "node",
-      "args": ["/absolute/path/outlook-mcp/dist/index.js"],
-      "env": {
-        "OUTLOOK_CLIENT_ID": "your-client-id",
-        "OUTLOOK_TENANT": "consumers"
-      }
-    }
-  }
-}
-```
-
-Restart Claude Desktop afterwards. Use `npm run inspect` to try the tools in the MCP Inspector.
+> 🏢 **Work or school accounts:** set `OUTLOOK_CLIENT_ID` to your app and `OUTLOOK_TENANT=organizations` (or your tenant GUID). Your organization may require **admin consent** for the mail permissions.
 
 ## 🧰 Tools reference
 
@@ -182,7 +169,7 @@ Inbox rules need the `MailboxSettings.ReadWrite` permission (see the Azure steps
 
 ## 👁️ Read-only mode
 
-Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutating tools do not exist for the client, so they cannot be called at all. Combine it with a token cache created using only `User.Read Mail.Read` (set `OUTLOOK_SCOPES` accordingly and re-run `npm run auth`) for defense in depth.
+Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutating tools do not exist for the client, so they cannot be called at all. Combine it with a token cache created using only `User.Read Mail.Read` (set `OUTLOOK_SCOPES` accordingly and re-run `npx -y @pepebits/outlook-mcp auth`) for defense in depth.
 
 ## 🛡️ Security
 
@@ -199,12 +186,31 @@ Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutati
 | --- | --- |
 | `AADSTS7000218` (client assertion / secret required) | Enable **Allow public client flows** in Azure -> Manage -> Authentication -> Settings. |
 | `AADSTS50020` or wrong tenant | The account type does not match `OUTLOOK_TENANT`. Use `consumers` for personal, `organizations` for work/school, `common` for both, and make sure the app registration supports that account type. |
-| "Not signed in or session expired" | Ask the assistant to call `login`, or run `npm run auth`. |
+| "Not signed in or session expired" | Ask the assistant to call `login`, or run `npx -y @pepebits/outlook-mcp auth`. |
 | Search returns "Invalid search query" | `search_messages` uses KQL, e.g. `from:alice subject:"report" hasattachments:true`. Graph returns at most about 250 results per search, and results are not sorted. |
 | "Message not found" after a move | Message ids change when a message is moved. Use the `newId` returned by `move_message` or list the folder again. |
-| "Access denied for inbox rules" | Add `MailboxSettings.ReadWrite` in Azure -> API permissions, make sure it is in `OUTLOOK_SCOPES`, then run `npm run auth` again. |
+| "Access denied for inbox rules" | Add `MailboxSettings.ReadWrite` in Azure -> API permissions, make sure it is in `OUTLOOK_SCOPES`, then run `npx -y @pepebits/outlook-mcp auth` again. |
 | Access denied / consent required | Add the missing delegated permission, or ask an admin for consent. |
-| Server does not start in a client | Check stderr logs; `OUTLOOK_CLIENT_ID` must be set via `.env` or the client's `env` block. |
+| Server does not start in a client | Check stderr logs; if you use your own app, `OUTLOOK_CLIENT_ID` must be set via `.env` or the client's `env` block. |
+
+## 🧑‍💻 Development
+
+```bash
+git clone https://github.com/Pepebits/outlook-mcp.git
+cd outlook-mcp
+npm install
+cp .env.example .env        # optional
+npm run build
+npm test
+```
+
+Run it from source in your MCP client:
+
+```bash
+claude mcp add outlook --scope user -- node /absolute/path/outlook-mcp/dist/index.js
+```
+
+Use `npm run inspect` to try the tools in the MCP Inspector.
 
 ## 🗺️ Roadmap
 
