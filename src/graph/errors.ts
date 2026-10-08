@@ -36,6 +36,11 @@ export function mapGraphError(err: unknown): Error {
   if (err.code === 'ErrorItemNotFound' || err.status === 404) {
     return new Error('Message not found (id may have changed after move). List the folder again to get fresh ids.');
   }
+  if ((err.status === 403 || err.code === 'ErrorAccessDenied') && /messageRules/i.test(err.requestPath)) {
+    return new Error(
+      'Access denied for inbox rules. Add the delegated Microsoft Graph permission MailboxSettings.ReadWrite to your app registration in Azure, include it in OUTLOOK_SCOPES, then re-run `npm run auth`.',
+    );
+  }
   if (err.status === 403 || err.code === 'ErrorAccessDenied') {
     return new Error(
       `Access denied (${err.code}). The app registration may be missing a delegated permission (Mail.ReadWrite / Mail.Send), or admin consent is required. ${err.message}`,

@@ -19,7 +19,7 @@ export interface Config {
 const schema = z.object({
   OUTLOOK_CLIENT_ID: z.string({ error: 'OUTLOOK_CLIENT_ID is required (see README: Azure app registration)' }).trim().min(1, 'OUTLOOK_CLIENT_ID is required (see README: Azure app registration)'),
   OUTLOOK_TENANT: z.string().trim().min(1).default('consumers'),
-  OUTLOOK_SCOPES: z.string().trim().min(1).default('User.Read Mail.ReadWrite Mail.Send offline_access'),
+  OUTLOOK_SCOPES: z.string().trim().min(1).default('User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access'),
   OUTLOOK_TOKEN_CACHE: z.string().trim().optional(),
   OUTLOOK_READ_ONLY: z.string().trim().default('false'),
   OUTLOOK_DOWNLOAD_DIR: z.string().trim().optional(),

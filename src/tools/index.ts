@@ -11,6 +11,7 @@ import { folderTools } from './folders.js';
 import { manageTools } from './manage.js';
 import { messageTools } from './messages.js';
 import { newsletterTools } from './newsletters.js';
+import { ruleTools } from './rules.js';
 import { unsubscribeTools } from './unsubscribe.js';
 
 export interface ToolContext {
@@ -28,7 +29,7 @@ export interface ToolDef {
 }
 
 export function allTools(): ToolDef[] {
-  return [...folderTools, ...messageTools, ...attachmentTools, ...composeTools, ...manageTools, ...unsubscribeTools, ...newsletterTools];
+  return [...folderTools, ...messageTools, ...attachmentTools, ...composeTools, ...manageTools, ...unsubscribeTools, ...newsletterTools, ...ruleTools];
 }
 
 /** Pure selection function: drops mutating tools in read-only mode. */

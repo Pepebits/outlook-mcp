@@ -65,7 +65,7 @@ Variables are read from `.env` in the current directory and in the package direc
 | --- | --- | --- |
 | `OUTLOOK_CLIENT_ID` | _(required)_ | Application (client) ID of your Azure app registration. |
 | `OUTLOOK_TENANT` | `consumers` | Authority tenant: `consumers` (personal), `organizations` (work/school), `common` (both) or a tenant GUID. |
-| `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send offline_access` | Space-separated delegated Graph scopes requested at sign-in. |
+| `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access` | Space-separated delegated Graph scopes requested at sign-in. |
 | `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Where the MSAL token cache is stored (file mode `0600`). |
 | `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered at all. |
 | `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` | The only directory attachments may be written to. |
