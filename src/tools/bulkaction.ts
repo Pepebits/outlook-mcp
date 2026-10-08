@@ -49,18 +49,18 @@ async function collect(a: any, graph: GraphClient, max: number) {
   return { messages: items.slice(0, max), truncated };
 }
 
+/** A move gives the message a new id in its new folder; report it so callers can act on it again. */
+const moved = (m: { id?: string } | undefined) => (m?.id ? { newId: m.id } : {});
+
 function applyAction(action: Action, destination: string | undefined, graph: GraphClient) {
   return async (id: string): Promise<unknown> => {
     switch (action) {
       case 'delete':
-        await graph.post(`${msg(id)}/move`, { destinationId: 'deleteditems' });
-        return {};
+        return moved(await graph.post<{ id?: string }>(`${msg(id)}/move`, { destinationId: 'deleteditems' }));
       case 'archive':
-        await graph.post(`${msg(id)}/move`, { destinationId: 'archive' });
-        return {};
+        return moved(await graph.post<{ id?: string }>(`${msg(id)}/move`, { destinationId: 'archive' }));
       case 'move':
-        await graph.post(`${msg(id)}/move`, { destinationId: destination });
-        return {};
+        return moved(await graph.post<{ id?: string }>(`${msg(id)}/move`, { destinationId: destination }));
       case 'markRead':
         await graph.patch(msg(id), { isRead: true });
         return {};
@@ -135,7 +135,12 @@ export const bulkActionTools: ToolDef[] = [
         truncated,
         succeeded: out.succeeded,
         failed: out.failed,
-        results: out.results.map((r) => ({ id: r.id, ok: r.ok, ...(r.error ? { error: r.error } : {}) })),
+        results: out.results.map((r) => ({
+          id: r.id,
+          ok: r.ok,
+          ...('newId' in r && r.newId ? { newId: r.newId } : {}),
+          ...(r.error ? { error: r.error } : {}),
+        })),
       };
     },
   },

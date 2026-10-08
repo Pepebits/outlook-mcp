@@ -387,7 +387,7 @@ describe('bulk_action', () => {
     expect(mutations(calls)).toEqual([]);
   });
 
-  it('applies with partial failure and reports ids with ok/error only', async () => {
+  it('applies with partial failure and reports new ids after a move', async () => {
     const { graph, calls } = fakeGraph(
       inbox(['a', 'b', 'c']),
       on('POST', '/me/messages/a/move', { json: { id: 'a2' } }),
@@ -397,7 +397,8 @@ describe('bulk_action', () => {
     const out = await run('bulk_action', { unreadOnly: true, action: 'delete', dryRun: false }, makeCtx(graph));
     expect(out).toMatchObject({ dryRun: false, applied: 3, succeeded: 2, failed: 1 });
     expect(out.results.map((r: any) => [r.id, r.ok])).toEqual([['a', true], ['b', false], ['c', true]]);
-    expect(out.results[0]).toEqual({ id: 'a', ok: true });
+    expect(out.results[0]).toEqual({ id: 'a', ok: true, newId: 'a2' });
+    expect(out.results[2]).toEqual({ id: 'c', ok: true, newId: 'c2' });
     expect(out.results[1].error).toMatch(/not found/i);
     expect(mutations(calls).map((c) => c.body)).toEqual([{ destinationId: 'deleteditems' }, { destinationId: 'deleteditems' }, { destinationId: 'deleteditems' }]);
   });
