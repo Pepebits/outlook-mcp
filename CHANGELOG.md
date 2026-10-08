@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `login`, `auth_status` and `logout` tools: sign in and out from the MCP client without a terminal. `login` returns the device code URL and code, and sign-in completes in the background.
 - `get_unsubscribe_info` and `unsubscribe` tools: read List-Unsubscribe headers and leave a mailing list by RFC 8058 one-click or a mailto request.
 - Bulk operations: `delete_message`, `move_message`, `mark_read`, `flag_message` and `unsubscribe` accept `ids` (up to 50) as an alternative to `id`, report per-message results and never stop on the first error.
 - `find_newsletters` tool: groups a folder's messages by sender and reports which senders are mailing lists and how to unsubscribe.

@@ -94,7 +94,13 @@ npm run whoami    # silent token + GET /me
 npm run logout    # removes accounts and deletes the token cache file
 ```
 
-The server itself never prompts. If the session is missing or expired, tools return: *"Not signed in or session expired. Run `npm run auth` ..."*. Run it in a terminal and retry.
+You can also sign in without a terminal. Just ask your assistant to *"log in to Outlook"*:
+
+- 🔑 `login` returns a URL and a one-time code. Open the URL, enter the code and accept; sign-in finishes in the background.
+- ✅ `auth_status` tells you whether you are signed in, still waiting, or signed out.
+- 🚪 `logout` removes the cached account and the token cache file.
+
+Use `login` with `force: true` to sign in again, for example after adding a permission in Azure. If the session is missing or expired, tools return *"Not signed in or session expired. Call the login tool ..."*.
 
 ## 🤖 Using with Claude
 
@@ -135,6 +141,9 @@ Restart Claude Desktop afterwards. Use `npm run inspect` to try the tools in the
 
 | Tool | Mutating | Description |
 | --- | :---: | --- |
+| `login` | no | Start a device code sign-in; returns the URL and code (`force` to sign in again). |
+| `auth_status` | no | Signed in, pending sign-in or signed out. |
+| `logout` | no | Sign out and delete the local token cache. |
 | `list_folders` | no | List mail folders or child folders (`parentFolderId`, `includeHidden`). |
 | `list_messages` | no | List messages, newest first, with filters (`unreadOnly`, `from`, `since`, `until`, `hasAttachments`) and `nextLink` paging. |
 | `search_messages` | no | KQL full-text search with `nextLink` paging. |
@@ -190,7 +199,7 @@ Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutati
 | --- | --- |
 | `AADSTS7000218` (client assertion / secret required) | Enable **Allow public client flows** in Azure -> Manage -> Authentication -> Settings. |
 | `AADSTS50020` or wrong tenant | The account type does not match `OUTLOOK_TENANT`. Use `consumers` for personal, `organizations` for work/school, `common` for both, and make sure the app registration supports that account type. |
-| "Not signed in or session expired" | Run `npm run auth` again. |
+| "Not signed in or session expired" | Ask the assistant to call `login`, or run `npm run auth`. |
 | Search returns "Invalid search query" | `search_messages` uses KQL, e.g. `from:alice subject:"report" hasattachments:true`. Graph returns at most about 250 results per search, and results are not sorted. |
 | "Message not found" after a move | Message ids change when a message is moved. Use the `newId` returned by `move_message` or list the folder again. |
 | "Access denied for inbox rules" | Add `MailboxSettings.ReadWrite` in Azure -> API permissions, make sure it is in `OUTLOOK_SCOPES`, then run `npm run auth` again. |
