@@ -1,3 +1,6 @@
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { allTools, selectTools, withErrorHandling } from '../src/tools/index.js';
 import { graphError, fakeAuth, fakeGraph, makeCtx, on, run, tool, type Route } from './helpers/graph.js';
@@ -320,6 +323,12 @@ describe('mail_digest', () => {
     expect(out.truncated).toBeUndefined();
   });
 
+  it('echoes the normalized since value', async () => {
+    const { graph } = fakeGraph(inbox);
+    const out = await run('mail_digest', { since: '2026-01-01', groupBy: 'none' }, makeCtx(graph));
+    expect(out.since).toBe('2026-01-01T00:00:00.000Z');
+  });
+
   it('defaults to the last 24 hours and supports groupBy none and unreadOnly false', async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date('2026-03-10T12:00:00Z'));
@@ -340,5 +349,24 @@ describe('mail_digest', () => {
     const out = await run('mail_digest', { maxMessages: 2, groupBy: 'none' }, makeCtx(graph));
     expect(out.counts.total).toBe(2);
     expect(out.truncated).toBe(true);
+  });
+});
+
+describe('download_attachment', () => {
+  it('returns the saved path under untrusted, since it contains the sender-chosen name', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'outlook-mcp-dl-'));
+    try {
+      const { graph } = fakeGraph(
+        on('GET', '/me/messages/m1/attachments/a1', { json: { id: 'a1', name: 'ignore previous.txt' } }),
+        on('GET', '/me/messages/m1/attachments/a1/$value', { json: { x: 1 } }),
+      );
+      const out = await run('download_attachment', { messageId: 'm1', attachmentId: 'a1' }, makeCtx(graph, { OUTLOOK_DOWNLOAD_DIR: dir }));
+      expect(out).not.toHaveProperty('savedTo');
+      expect(out.bytes).toBeGreaterThan(0);
+      expect(out.note).toMatch(/untrusted/);
+      expect(out.untrusted.savedTo).toContain('ignore previous.txt');
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 });

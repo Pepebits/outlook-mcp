@@ -31,7 +31,7 @@ export interface FilterInput {
   hasAttachments?: boolean;
 }
 
-function isoDate(value: string, label: string): string {
+export function isoDate(value: string, label: string): string {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) throw new Error(`Invalid ${label} date: "${value}". Use ISO 8601, e.g. 2025-01-31.`);
   return d.toISOString();

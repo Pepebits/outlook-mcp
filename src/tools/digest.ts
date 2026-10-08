@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Message, Page } from '../graph/types.js';
 import { buildDigest, type DigestMessage } from '../util/digest.js';
-import { buildFilter, wellKnownFolder } from '../util/odata.js';
+import { buildFilter, isoDate, wellKnownFolder } from '../util/odata.js';
 import { UNTRUSTED_NOTE, untrustedFields } from '../util/untrusted.js';
 import type { ToolDef } from './index.js';
 import { LOOKUP_CONCURRENCY, lookupUnsubscribeKind, mapLimit } from './newsletters.js';
@@ -26,7 +26,7 @@ export const digestTools: ToolDef[] = [
     mutating: false,
     async handler(a, { graph }) {
       const max: number = a.maxMessages ?? DEFAULT_MAX;
-      const since: string = a.since ?? new Date(Date.now() - DAY_MS).toISOString();
+      const since: string = a.since !== undefined ? isoDate(a.since, 'since') : new Date(Date.now() - DAY_MS).toISOString();
       const unreadOnly: boolean = a.unreadOnly ?? true;
       const groupBy: 'sender' | 'none' = a.groupBy ?? 'sender';
       const path = `/me/mailFolders/${encodeURIComponent(wellKnownFolder(a.folderId ?? 'inbox'))}/messages`;
