@@ -12,7 +12,7 @@ export async function startServer(cfg: Config): Promise<void> {
 
   const pca = createPca(cfg);
   const graph = new GraphClient(() => getAccessToken(pca, cfg, { interactive: false }), cfg.graphBaseUrl);
-  const server = new McpServer({ name: 'outlook-mcp', version: '0.1.0' });
+  const server = new McpServer({ name: 'outlook-mcp', version: '0.2.0' });
   const names = registerAllTools(server, { graph, cfg });
 
   await server.connect(new StdioServerTransport());

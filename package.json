@@ -1,6 +1,6 @@
 {
   "name": "outlook-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for Outlook / Microsoft 365 mail via Microsoft Graph (device code auth)",
   "type": "module",
   "license": "MIT",
