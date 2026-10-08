@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - README setup for OpenAI Codex (`codex mcp add` and `config.toml`) and other MCP clients.
+- `OUTLOOK_TOKEN_STORE` (`auto`, `keychain`, `file`; default `auto`): the token cache is kept in the macOS Keychain (`security` CLI) or the Linux Secret Service (`secret-tool`) when available, with no native dependencies. An existing cache file is imported into an empty keychain and deleted; `logout` clears both. Windows and systems without a keychain keep using the file.
+- `mail_digest` tool (read-only): counts, high-importance and flagged messages, and messages grouped by sender with a newsletter hint for a folder and time window.
+- Server-level MCP `instructions` telling clients that email content is untrusted and that sending, deleting, unsubscribing and rule changes should be confirmed with the user.
+- Tests for tool handlers using a fake Graph client.
+
+### Changed
+
+- Tool results that include message content now group sender-controlled text (subjects, senders, previews, attachment names) under an `untrusted` key instead of top-level `subject`, `from`, `preview` and `name` fields. This affects `list_messages`, `search_messages`, `get_message`, `list_attachments` and `find_newsletters`.
+
+### Security
+
+- Prompt-injection hardening: `get_message` bodies are enclosed in `<untrusted_email_content>` markers (with look-alike markers inside the content neutralized), results carry a note that email content is untrusted data, and tool descriptions say so.
+- The token cache is stored in the OS keychain by default where one is available, instead of a file. Secrets are passed to `secret-tool` and `security -i` over stdin, never as command-line arguments.
 
 ## [1.0.1] - 2026-10-08
 
