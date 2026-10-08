@@ -102,8 +102,11 @@ export class AuthSession {
     const cache = this.pca.getTokenCache();
     const accounts = await cache.getAllAccounts();
     for (const account of accounts) await cache.removeAccount(account);
-    await clearTokenStore(this.cfg);
-    this.pca = createPca(this.cfg);
+    try {
+      await clearTokenStore(this.cfg);
+    } finally {
+      this.pca = createPca(this.cfg);
+    }
     return { removedAccounts: accounts.length };
   }
 }

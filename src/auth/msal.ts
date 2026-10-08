@@ -4,7 +4,7 @@ import { log } from '../log.js';
 import fs from 'node:fs/promises';
 import type { ICachePlugin } from '@azure/msal-node';
 import { FileCachePlugin } from './cache.js';
-import { KeychainCachePlugin, selectTokenStore } from './keychain.js';
+import { KeychainCachePlugin, currentStoreEnv, defaultExec, selectTokenStore, type Exec, type StoreEnv } from './keychain.js';
 
 export class AuthRequiredError extends Error {
   constructor(
@@ -22,15 +22,21 @@ export function createCachePlugin(cfg: Config): ICachePlugin {
     : new FileCachePlugin(cfg.tokenCachePath);
 }
 
-/** Deletes the token cache file and, where the platform has one, the keychain entry. */
-export async function clearTokenStore(cfg: Config): Promise<void> {
+/**
+ * Deletes the token cache file and the keychain entry. The keychain is always tried where the platform has
+ * one, whatever OUTLOOK_TOKEN_STORE says, so a switch to `file` cannot leave a token behind. A missing
+ * entry is fine; any other keychain failure is thrown so logout does not report success falsely.
+ */
+export async function clearTokenStore(cfg: Config, env: StoreEnv = currentStoreEnv(), exec: Exec = defaultExec): Promise<void> {
   await fs.rm(cfg.tokenCachePath, { force: true });
-  if (cfg.tokenStore === 'file') return;
+  const store = selectTokenStore('auto', cfg.tokenCachePath, env, exec);
+  if (store.kind !== 'keychain') return;
   try {
-    const store = selectTokenStore(cfg.tokenStore, cfg.tokenCachePath);
-    if (store.kind === 'keychain') await store.backend.delete();
+    await store.backend.delete();
   } catch (err) {
-    log.warn(`could not clear the keychain entry: ${(err as Error).message}`);
+    throw new Error(
+      `Signed out locally, but the ${store.backend.name} entry could not be removed: ${(err as Error).message}`,
+    );
   }
 }
 
