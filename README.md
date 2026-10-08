@@ -12,7 +12,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 
 - 📂 Browse folders, list and search messages (KQL), read bodies as sanitized plain text
 - 📎 List and download attachments safely into a configured directory
-- ✉️ Send mail, create drafts, reply, reply-all and forward (local attachments under 3 MB)
+- ✉️ Send mail, create drafts, reply, reply-all and forward (local attachments up to 150 MB; files of 3 MB or more are uploaded in chunks)
 - 🗂️ Move, mark read/unread, flag and delete messages, one at a time or in bulk (`ids`)
 - 📰 Find newsletters, unsubscribe from them and block unwanted senders with inbox rules
 - 🔒 Read-only mode that removes every mutating tool
@@ -175,14 +175,15 @@ By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works 
 | `get_message` | no | Full message with recipients, flags and body (`format` text/html, `maxChars`). |
 | `list_attachments` | no | Attachment metadata for a message. |
 | `download_attachment` | no | Save an attachment into `OUTLOOK_DOWNLOAD_DIR` (writes locally only; no overwrite unless `overwrite: true`). |
-| `send_mail` | yes | Send an email, optionally with local attachments under 3 MB. |
-| `create_draft` | yes | Create a draft without sending. |
+| `send_mail` | yes | Send an email, optionally with local attachments up to 150 MB (3 MB or more go through an upload session; if an upload fails nothing is sent). |
+| `create_draft` | yes | Create a draft without sending. Attachments up to 150 MB; failed uploads are reported and the draft is kept. |
 | `reply_message` | yes | Reply or reply-all (`replyAll`). |
 | `forward_message` | yes | Forward to new recipients. |
 | `move_message` | yes | Move to a folder; returns the new id. Accepts `id` or `ids` (up to 50). |
 | `mark_read` | yes | Mark read or unread. Accepts `id` or `ids` (up to 50). |
 | `flag_message` | yes | `flagged`, `complete` or `notFlagged`. Accepts `id` or `ids` (up to 50). |
 | `delete_message` | yes | Move to Deleted Items, or `permanent: true` to delete irreversibly. Accepts `id` or `ids` (up to 50). |
+| `bulk_action` | yes | Apply `delete`, `move`, `archive`, `markRead`, `markUnread`, `flag` or `unflag` to every message matching a `query` (KQL) or filters (`folderId`, `from`, `since`, `until`, `unreadOnly`, `hasAttachments`). `dryRun` is on by default; `max` defaults to 100 (hard cap 500). |
 | `get_unsubscribe_info` | no | Show how to leave the mailing list a message came from (List-Unsubscribe). |
 | `unsubscribe` | yes | Leave a mailing list: RFC 8058 one-click, else a mailto request, else returns the link. Accepts `id` or `ids` (up to 50). |
 | `find_newsletters` | no | Scan a folder (`folderId`, `maxMessages` up to 2000, `excludeDomains`, `includeNoUnsubscribe`), group by sender and report mailing lists with their unsubscribe method, most frequent first. |
@@ -209,6 +210,22 @@ Ask Claude something like *"Find the newsletters cluttering my inbox, unsubscrib
 3. `block_sender` with `addresses` or `domains` creates an inbox rule that sends their future mail to Deleted Items. Use `delete_message` with `ids` to clear what is already in the inbox, and `list_rules` / `delete_rule` to review or undo a block.
 
 Inbox rules need the `MailboxSettings.ReadWrite` permission (see the Azure steps above). Do not unsubscribe from spam or phishing: it confirms your address is active. Block those senders instead.
+
+## 🔎 Bulk clean-up by search
+
+Ask *"Archive everything from newsletters@shop.com received before 2025"*. `bulk_action` always starts as a **dry run**: it changes nothing and returns the match count plus a sample of 10 messages.
+
+```json
+{ "from": "newsletters@shop.com", "until": "2025-01-01", "action": "archive" }
+```
+
+Confirm the count with the assistant, then it calls the tool again with `dryRun: false` to apply the action:
+
+```json
+{ "from": "newsletters@shop.com", "until": "2025-01-01", "action": "archive", "dryRun": false }
+```
+
+Use either `query` (KQL, e.g. `from:shop.com hasattachments:true`) or the filter fields, not both. At most `max` messages are processed (default 100, hard cap 500) and the response says if the result was `truncated`; run it again for the rest. `delete` moves to Deleted Items (recoverable), `archive` moves to the Archive folder, and `move` needs `destinationFolderId`. Failures never stop the run: the response lists each id with `ok` or `error`.
 
 ## 👁️ Read-only mode
 
@@ -267,8 +284,7 @@ Use `npm run inspect` to try the tools in the MCP Inspector.
 
 This server is about mail only; calendar and other Microsoft 365 data are out of scope.
 
-- 🔎 Bulk actions by search (e.g. archive everything from a sender before a date)
-- 📦 Large attachments through upload sessions
+There is nothing planned right now. Ideas are welcome: [open an issue](https://github.com/Pepebits/outlook-mcp/issues).
 
 ## 🤝 Contributing
 

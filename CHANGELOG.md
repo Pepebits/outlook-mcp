@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `bulk_action` tool: apply `delete`, `move`, `archive`, `markRead`, `markUnread`, `flag` or `unflag` to the messages matching a KQL `query` or filters. It runs as a dry run by default (count and a sample of 10), processes up to `max` messages (default 100, hard cap 500) and reports per-message results.
+- `send_mail` and `create_draft` accept attachments of 3 MB up to 150 MB through Graph upload sessions, streamed from disk in chunks. If an upload fails, `send_mail` deletes its draft and sends nothing; `create_draft` keeps the draft and lists the attachments that failed.
+
 ## [1.1.0] - 2026-10-08
 
 ### Added
