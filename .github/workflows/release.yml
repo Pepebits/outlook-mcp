@@ -38,7 +38,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
-          git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" > notes.md
+          version="${GITHUB_REF_NAME#v}"
+          awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md > notes.md
           gh release create "$GITHUB_REF_NAME" \
             --title "$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" \
             --notes-file notes.md
@@ -53,10 +54,10 @@ jobs:
       tag: ${{ inputs.tag || github.ref_name }}
       chat: ${{ inputs.chat || 'announcements' }}
       dry_run: ${{ inputs.dry_run || false }}
-      notes_source: tag
+      notes_source: changelog
       install_title: 📦 Install
       install_command: git clone --branch {tag} https://github.com/Pepebits/outlook-mcp.git && cd outlook-mcp && npm ci && npm run build
       buttons: >-
-        [{"text": "📝 Notes", "url": "{repo_url}/releases/tag/{tag}"},
+        [{"text": "📝 Changelog", "url": "{repo_url}/blob/{tag}/CHANGELOG.md"},
          {"text": "📖 Setup guide", "url": "{repo_url}/blob/{tag}/README.md"}]
     secrets: inherit
