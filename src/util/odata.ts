@@ -38,14 +38,22 @@ function isoDate(value: string, label: string): string {
 }
 
 /** Build an OData $filter expression, or undefined when no criteria are given. */
+/**
+ * Builds $filter for a listing sorted by receivedDateTime desc. Exchange rejects
+ * such a sort (InefficientFilter) unless receivedDateTime is filtered first, so a
+ * receivedDateTime clause always leads, with an open lower bound when none is given.
+ */
 export function buildFilter(f: FilterInput): string | undefined {
   const parts: string[] = [];
   if (f.unreadOnly) parts.push('isRead eq false');
   if (f.from) parts.push(`from/emailAddress/address eq '${escapeODataString(f.from)}'`);
-  if (f.since) parts.push(`receivedDateTime ge ${isoDate(f.since, 'since')}`);
-  if (f.until) parts.push(`receivedDateTime le ${isoDate(f.until, 'until')}`);
   if (f.hasAttachments !== undefined) parts.push(`hasAttachments eq ${f.hasAttachments}`);
-  return parts.length ? parts.join(' and ') : undefined;
+  const dates: string[] = [];
+  if (f.since) dates.push(`receivedDateTime ge ${isoDate(f.since, 'since')}`);
+  if (f.until) dates.push(`receivedDateTime le ${isoDate(f.until, 'until')}`);
+  if (!parts.length) return dates.length ? dates.join(' and ') : undefined;
+  if (!f.since) dates.unshift('receivedDateTime ge 1900-01-01T00:00:00Z');
+  return [...dates, ...parts].join(' and ');
 }
 
 /** Quote a search query for $search, escaping backslashes and double quotes. */

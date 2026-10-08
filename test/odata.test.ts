@@ -6,7 +6,12 @@ describe('odata', () => {
   it('builds combined filters', () => {
     const f = buildFilter({ unreadOnly: true, from: "a'b@x.com", since: '2025-01-01T00:00:00Z', until: '2025-02-01T00:00:00Z', hasAttachments: true });
     expect(f).toBe(
-      "isRead eq false and from/emailAddress/address eq 'a''b@x.com' and receivedDateTime ge 2025-01-01T00:00:00.000Z and receivedDateTime le 2025-02-01T00:00:00.000Z and hasAttachments eq true",
+      "receivedDateTime ge 2025-01-01T00:00:00.000Z and receivedDateTime le 2025-02-01T00:00:00.000Z and isRead eq false and from/emailAddress/address eq 'a''b@x.com' and hasAttachments eq true",
+    );
+  });
+  it('leads with a receivedDateTime bound so the date sort is accepted', () => {
+    expect(buildFilter({ from: 'a@x.com' })).toBe(
+      "receivedDateTime ge 1900-01-01T00:00:00Z and from/emailAddress/address eq 'a@x.com'",
     );
   });
   it('returns undefined for empty filter and rejects bad dates', () => {
