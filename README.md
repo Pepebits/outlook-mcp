@@ -269,7 +269,6 @@ This server is about mail only; calendar and other Microsoft 365 data are out of
 
 - 🔎 Bulk actions by search (e.g. archive everything from a sender before a date)
 - 📦 Large attachments through upload sessions
-- 👥 Contact lookup to fill in recipients
 
 ## 🤝 Contributing
 
