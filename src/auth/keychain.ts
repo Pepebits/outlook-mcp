@@ -50,6 +50,8 @@ export function keychainAccount(cachePath: string): string {
 // `security -i` reads commands from stdin and truncates lines at about 4 KB, so values are stored base64
 // encoded in chunks that stay well under that limit.
 const MAC_CHUNK = 3000;
+// How many chunk slots to probe for leftovers; a token cache needs only a few chunks.
+const MAC_ORPHAN_SCAN = 16;
 
 /**
  * macOS Keychain through the `security` CLI.
@@ -105,19 +107,28 @@ export class MacKeychainBackend implements SecretBackend {
   }
 
   async set(value: string): Promise<void> {
-    const old = (await this.readCount()) ?? 0;
     const b64 = Buffer.from(value, 'utf8').toString('base64');
     const chunks = b64.match(new RegExp(`.{1,${MAC_CHUNK}}`, 'g')) ?? [''];
     for (let i = 0; i < chunks.length; i++) await this.add(`${this.account}#${i}`, chunks[i] || '=');
     await this.add(this.account, `chunks:${chunks.length}`);
-    for (let i = chunks.length; i < old; i++) await this.remove(`${this.account}#${i}`);
+    await this.removeChunksFrom(chunks.length);
     if ((await this.get()) !== value) throw new Error('Could not write the token cache to the macOS Keychain.');
   }
 
   async delete(): Promise<void> {
-    const count = (await this.readCount()) ?? 0;
-    for (let i = 0; i < count; i++) await this.remove(`${this.account}#${i}`);
+    await this.removeChunksFrom(0);
     await this.remove(this.account);
+  }
+
+  /**
+   * Removes chunk items from `start` on, including ones orphaned by an interrupted
+   * write or a lost manifest (gaps included), up to a fixed scan limit.
+   */
+  private async removeChunksFrom(start: number): Promise<void> {
+    const count = (await this.readCount()) ?? 0;
+    for (let i = start; i < Math.max(count, MAC_ORPHAN_SCAN); i++) {
+      if (i < count || (await this.find(`${this.account}#${i}`)).code === 0) await this.remove(`${this.account}#${i}`);
+    }
   }
 }
 

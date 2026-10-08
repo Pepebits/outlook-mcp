@@ -188,6 +188,15 @@ describe('MacKeychainBackend', () => {
     expect(await b.get()).toBeUndefined();
   });
 
+  it('removes chunks orphaned without a manifest', async () => {
+    const f = fakeSecurity();
+    const b = new MacKeychainBackend('/tmp/t.json', f.exec);
+    await b.set('{"a":1}');
+    f.store.set('outlook-mcp|/tmp/t.json#2', 'stale');
+    await b.delete();
+    expect(f.store.size).toBe(0);
+  });
+
   it('reports a failed write', async () => {
     const f = fakeSecurity(new Map(), 100);
     await expect(new MacKeychainBackend('/tmp/t.json', f.exec).set('x'.repeat(500))).rejects.toThrow();
