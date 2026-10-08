@@ -58,29 +58,43 @@ jobs:
             --title "$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" \
             --notes-file notes.md
 
-  # Runs only by hand, after the staged npm version has been approved.
-  check-npm:
-    if: github.event_name == 'workflow_dispatch'
+  # Waits until the staged npm version has been approved on npmjs.com, so the
+  # announcement never points at a version that cannot be installed yet. On a tag
+  # push it polls for up to ~5h50m (GitHub's job limit is 6h); when run by hand it
+  # checks once.
+  wait-npm:
+    needs: release
+    if: always() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
+    timeout-minutes: 355
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.tag }}
-      - name: Check that the version is installable from npm
+          ref: ${{ inputs.tag || github.ref_name }}
+      - name: Wait for the npm version to be installable
+        env:
+          TAG: ${{ inputs.tag || github.ref_name }}
+          ATTEMPTS: ${{ github.event_name == 'workflow_dispatch' && '1' || '345' }}
         run: |
           name=$(node -p "require('./package.json').name")
-          version="${INPUT_TAG#v}"
-          if ! npm view "$name@$version" version >/dev/null 2>&1; then
-            echo "::error::$name@$version is not on npm yet. Approve the staged release on npmjs.com first."
-            exit 1
-          fi
-        env:
-          INPUT_TAG: ${{ inputs.tag }}
+          version="${TAG#v}"
+          for i in $(seq 1 "$ATTEMPTS"); do
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is on npm"
+              exit 0
+            fi
+            if [ "$i" -lt "$ATTEMPTS" ]; then
+              echo "Waiting for $name@$version to be approved on npmjs.com ($i/$ATTEMPTS)"
+              sleep 60
+            fi
+          done
+          echo "::error::$name@$version is not on npm. Approve the staged release on npmjs.com, then run this workflow by hand to announce it."
+          exit 1
 
   announce:
-    needs: check-npm
+    needs: wait-npm
     permissions:
       contents: read
     uses: Pepebits/release-announce/.github/workflows/announce.yml@v1
