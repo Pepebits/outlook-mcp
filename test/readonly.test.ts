@@ -9,6 +9,6 @@ describe('read-only mode', () => {
       expect(ro).not.toContain(n);
       expect(names(false)).toContain(n);
     }
-    expect(ro).toEqual(expect.arrayContaining(['list_folders', 'list_messages', 'search_messages', 'get_message', 'list_attachments', 'download_attachment', 'find_newsletters', 'get_unsubscribe_info', 'list_rules']));
+    expect(ro).toEqual(expect.arrayContaining(['list_folders', 'list_messages', 'search_messages', 'get_message', 'list_attachments', 'download_attachment', 'find_newsletters', 'mail_digest', 'get_unsubscribe_info', 'list_rules']));
   });
 });

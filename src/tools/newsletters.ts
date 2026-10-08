@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { GraphClient } from '../graph/client.js';
 import type { Message, Page } from '../graph/types.js';
 import { groupBySender, unsubscribeKind, type SenderGroup, type UnsubscribeKind } from '../util/newsletters.js';
 import { wellKnownFolder } from '../util/odata.js';
@@ -7,9 +8,18 @@ import { UNTRUSTED_NOTE, untrustedFields } from '../util/untrusted.js';
 import type { ToolDef } from './index.js';
 
 const DEFAULT_MAX = 500;
-const LOOKUP_CONCURRENCY = 4;
+export const LOOKUP_CONCURRENCY = 4;
 
-async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+/** Reads a message's List-Unsubscribe headers and classifies how it can be unsubscribed. */
+export async function lookupUnsubscribeKind(graph: GraphClient, messageId: string): Promise<UnsubscribeKind> {
+  const m = await graph.get<{ internetMessageHeaders?: { name: string; value: string }[] }>(
+    `/me/messages/${encodeURIComponent(messageId)}`,
+    { query: { $select: 'internetMessageHeaders' } },
+  );
+  return unsubscribeKind(parseUnsubscribeHeaders(m.internetMessageHeaders ?? []));
+}
+
+export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
   const out = new Array<R>(items.length);
   let next = 0;
   const worker = async () => {
@@ -57,11 +67,7 @@ export const newsletterTools: ToolDef[] = [
       let lookupErrors = 0;
       const kinds = await mapLimit(groups, LOOKUP_CONCURRENCY, async (g): Promise<UnsubscribeKind> => {
         try {
-          const m = await graph.get<{ internetMessageHeaders?: { name: string; value: string }[] }>(
-            `/me/messages/${encodeURIComponent(g.sampleMessageId)}`,
-            { query: { $select: 'internetMessageHeaders' } },
-          );
-          return unsubscribeKind(parseUnsubscribeHeaders(m.internetMessageHeaders ?? []));
+          return await lookupUnsubscribeKind(graph, g.sampleMessageId);
         } catch {
           lookupErrors++;
           return 'none';

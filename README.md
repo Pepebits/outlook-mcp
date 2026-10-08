@@ -186,6 +186,7 @@ By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works 
 | `get_unsubscribe_info` | no | Show how to leave the mailing list a message came from (List-Unsubscribe). |
 | `unsubscribe` | yes | Leave a mailing list: RFC 8058 one-click, else a mailto request, else returns the link. Accepts `id` or `ids` (up to 50). |
 | `find_newsletters` | no | Scan a folder (`folderId`, `maxMessages` up to 2000, `excludeDomains`, `includeNoUnsubscribe`), group by sender and report mailing lists with their unsubscribe method, most frequent first. |
+| `mail_digest` | no | What is waiting in a folder (`folderId`, `since` default 24h, `unreadOnly` default true, `maxMessages` up to 1000, `groupBy` sender/none): counts, high-importance and flagged messages, and senders grouped with a newsletter hint. |
 | `list_rules` | no | List inbox rules. |
 | `create_rule` | yes | Create an inbox rule from `fromAddresses` / `senderContains` / `subjectContains` with action `move`, `delete`, `markRead` or `junk`. |
 | `delete_rule` | yes | Delete an inbox rule by id. |
@@ -194,6 +195,10 @@ By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works 
 **Bulk operations:** the tools marked "Accepts `id` or `ids`" take exactly one of the two. With `ids` they process up to 50 messages (a few at a time), never stop at the first error and return `{ results: [{ id, ok, ... | error }], succeeded, failed }`. With `id` the response is unchanged.
 
 Well-known folder names accepted anywhere a folder id is expected: `inbox`, `drafts`, `sentitems`, `deleteditems`, `junkemail`, `archive`.
+
+## 📬 Daily digest
+
+Ask *"What's waiting in my inbox today?"* and the assistant calls `mail_digest`: it scans the unread mail of the last 24 hours (adjust with `since`, `unreadOnly`, `maxMessages`) and returns counts (total, unread, flagged, high importance, with attachments), the high-importance and flagged messages, and the messages grouped by sender with their latest subject and a few message ids. For the top 20 senders it checks the `List-Unsubscribe` header, so newsletters are marked with `isNewsletter` and can be handed straight to `unsubscribe`.
 
 ## 🧹 Cleaning up your inbox
 
