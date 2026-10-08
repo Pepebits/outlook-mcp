@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { GraphClient } from '../graph/client.js';
 import type { MailFolder, Page } from '../graph/types.js';
 import { WELL_KNOWN_FOLDERS, wellKnownFolder } from '../util/odata.js';
 import { blockRuleName, blockTargets, buildRule, nextSequence, type MessageRule } from '../util/rules.js';
@@ -34,6 +35,18 @@ function summarize(r: MessageRule) {
   };
 }
 
+/**
+ * Posts a rule and returns the stored copy. On personal (outlook.com) mailboxes
+ * the POST response can describe a different, existing rule, so the result is
+ * checked against the rule list by display name.
+ */
+async function createRule(graph: GraphClient, rule: MessageRule): Promise<MessageRule> {
+  const posted = await graph.post<MessageRule>(RULES, rule);
+  if (posted?.displayName === rule.displayName) return posted;
+  const matches = (await existingRules(graph)).filter((r) => r.displayName === rule.displayName);
+  return matches.sort((a, b) => (b.sequence ?? 0) - (a.sequence ?? 0))[0] ?? posted;
+}
+
 export const ruleTools: ToolDef[] = [
   {
     name: 'list_rules',
@@ -66,7 +79,7 @@ export const ruleTools: ToolDef[] = [
         destination = await resolveFolderId(graph, a.destinationFolderId);
       }
       const rule = buildRule({ ...a, destinationFolderId: destination, sequence: nextSequence(await existingRules(graph)) });
-      return { created: summarize(await graph.post<MessageRule>(RULES, rule)) };
+      return { created: summarize(await createRule(graph, rule)) };
     },
   },
   {
@@ -99,7 +112,7 @@ export const ruleTools: ToolDef[] = [
         stopProcessingRules: true,
         sequence: nextSequence(await existingRules(graph)),
       });
-      return { created: summarize(await graph.post<MessageRule>(RULES, rule)) };
+      return { created: summarize(await createRule(graph, rule)) };
     },
   },
 ];
