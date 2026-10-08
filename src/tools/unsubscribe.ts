@@ -57,7 +57,9 @@ export const unsubscribeTools: ToolDef[] = [
           redirect: 'follow',
           signal: AbortSignal.timeout(15000),
         });
-        if (!res.ok) throw new Error(`One-click unsubscribe for ${from} failed with HTTP ${res.status}. Link: ${url}`);
+        if (!res.ok) {
+          return { from, subject, done: false, method: 'link', url, note: `One-click was refused (HTTP ${res.status}). Open this link in a browser to finish.` };
+        }
         return { from, subject, done: true, method: 'one-click', status: res.status };
       }
       const mailto = info.mailto[0];
