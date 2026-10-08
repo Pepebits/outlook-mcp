@@ -20,7 +20,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 
 ## 📋 Requirements
 
-- Node.js **20 or newer**
+- Node.js **24 (LTS) or newer**
 - A Microsoft account (personal, work or school)
 - An Azure app registration (free, see below)
 
