@@ -214,10 +214,10 @@ Use `npm run inspect` to try the tools in the MCP Inspector.
 
 ### 🚢 Releasing (maintainers)
 
-1. Move the `[Unreleased]` notes in `CHANGELOG.md` under the new version, bump `package.json`, commit and push.
+1. Move the `[Unreleased]` notes in `CHANGELOG.md` under the new version, bump the version in `package.json` and `server.json` (top level and package), commit and push.
 2. Tag it: `git tag -a vX.Y.Z -m "Short summary" && git push origin vX.Y.Z`. The Release workflow runs the tests, **stages** the version on npm (Trusted Publishing, with provenance) and creates the GitHub release.
 3. Approve the staged version on npmjs.com (or `npm stage approve <stage-id>`), which needs your 2FA.
-4. The workflow waits for the approval and then announces the release on Telegram. If you approve more than ~6 hours later, the wait times out: run the Release workflow by hand (**Actions → Release → Run workflow**) with the tag to announce it.
+4. The workflow waits for the approval, lists the version in the MCP Registry and announces the release on Telegram. If you approve more than ~6 hours later, the wait times out: run the Release workflow by hand (**Actions → Release → Run workflow**) with the tag to announce it.
 
 ## 🗺️ Roadmap
 

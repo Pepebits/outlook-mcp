@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Pepebits/outlook-mcp",
+  "title": "Outlook Mail",
+  "description": "Read, search, send and clean up Outlook.com / Hotmail mail through Microsoft Graph.",
+  "repository": {
+    "url": "https://github.com/Pepebits/outlook-mcp",
+    "source": "github"
+  },
+  "version": "1.0.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@pepebits/outlook-mcp",
+      "version": "1.0.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "OUTLOOK_CLIENT_ID",
+          "description": "Your own Azure app (client) ID. Leave unset to use the shared app for personal accounts.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "OUTLOOK_TENANT",
+          "description": "consumers (default), organizations, common or a tenant ID.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "OUTLOOK_READ_ONLY",
+          "description": "Set to true to expose only read-only tools.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}

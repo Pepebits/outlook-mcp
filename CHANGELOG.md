@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-08
+
+### Added
+
+- Listed in the official MCP Registry as `io.github.Pepebits/outlook-mcp` (`mcpName` and `server.json`).
+
+### Changed
+
+- Releases are staged on npm with provenance through Trusted Publishing and approved by a maintainer before they go live.
+
 ## [1.0.0] - 2026-10-08
 
 ### Added
