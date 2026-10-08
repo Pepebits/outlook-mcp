@@ -1,8 +1,7 @@
-import fs from 'node:fs/promises';
 import type { PublicClientApplication } from '@azure/msal-node';
 import type { Config } from '../config.js';
 import { log } from '../log.js';
-import { createPca, getAccessToken, getFirstAccount } from './msal.js';
+import { clearTokenStore, createPca, getAccessToken, getFirstAccount } from './msal.js';
 
 export interface PendingLogin {
   verificationUri: string;
@@ -103,7 +102,7 @@ export class AuthSession {
     const cache = this.pca.getTokenCache();
     const accounts = await cache.getAllAccounts();
     for (const account of accounts) await cache.removeAccount(account);
-    await fs.rm(this.cfg.tokenCachePath, { force: true });
+    await clearTokenStore(this.cfg);
     this.pca = createPca(this.cfg);
     return { removedAccounts: accounts.length };
   }

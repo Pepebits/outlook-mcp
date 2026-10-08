@@ -1,6 +1,5 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
-import { createPca, getAccessToken, getFirstAccount } from './auth/msal.js';
+import { clearTokenStore, createPca, getAccessToken, getFirstAccount } from './auth/msal.js';
 import { loadConfig } from './config.js';
 import { GraphClient } from './graph/client.js';
 import { startServer } from './server.js';
@@ -30,7 +29,7 @@ async function main(): Promise<void> {
       const pca = createPca(cfg);
       const cache = pca.getTokenCache();
       for (const account of await cache.getAllAccounts()) await cache.removeAccount(account);
-      await fs.rm(cfg.tokenCachePath, { force: true });
+      await clearTokenStore(cfg);
       process.stderr.write('Signed out; token cache removed.\n');
       return;
     }

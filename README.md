@@ -6,7 +6,7 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 
 ## 🔭 Overview
 
-`outlook-mcp` runs locally over stdio. It signs in with the **OAuth device code flow** (no client secret, no redirect URI), stores the refresh token in a local file only you can read, and talks to Microsoft Graph with plain `fetch`.
+`outlook-mcp` runs locally over stdio. It signs in with the **OAuth device code flow** (no client secret, no redirect URI), stores the refresh token in your OS keychain (or a local file only you can read), and talks to Microsoft Graph with plain `fetch`.
 
 ## ✨ Features
 
@@ -85,7 +85,8 @@ The `.env` file is optional. Variables are read from `.env` in the current direc
 | `OUTLOOK_CLIENT_ID` | shared outlook-mcp app | Application (client) ID of your own Azure app registration (optional). |
 | `OUTLOOK_TENANT` | `consumers` | Authority tenant: `consumers` (personal), `organizations` (work/school), `common` (both) or a tenant GUID. |
 | `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access` | Space-separated delegated Graph scopes requested at sign-in. |
-| `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Where the MSAL token cache is stored (file mode `0600`). |
+| `OUTLOOK_TOKEN_STORE` | `auto` | Where the token cache lives: `auto` (OS keychain when available, else file), `keychain` (fails if no keychain) or `file`. See [Token storage](#️-token-storage). |
+| `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Token cache file (mode `0600`) for the `file` store; also identifies the keychain entry. |
 | `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered at all. |
 | `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` | The only directory attachments may be written to. |
 | `OUTLOOK_DEFAULT_TOP` | `20` | Default page size for list/search tools (1-100). |
@@ -98,16 +99,32 @@ The `.env` file is optional. Variables are read from `.env` in the current direc
 ```bash
 npx -y @pepebits/outlook-mcp auth      # device code sign-in; prints a URL and a code
 npx -y @pepebits/outlook-mcp whoami    # silent token + GET /me
-npx -y @pepebits/outlook-mcp logout    # removes accounts and deletes the token cache file
+npx -y @pepebits/outlook-mcp logout    # removes accounts and deletes the token cache (keychain entry and file)
 ```
 
 You can also sign in without a terminal. Just ask your assistant to *"log in to Outlook"*:
 
 - 🔑 `login` returns a URL and a one-time code. Open the URL, enter the code and accept; sign-in finishes in the background.
 - ✅ `auth_status` tells you whether you are signed in, still waiting, or signed out.
-- 🚪 `logout` removes the cached account and the token cache file.
+- 🚪 `logout` removes the cached account and the token cache (keychain entry and file).
 
 Use `login` with `force: true` to sign in again, for example after adding a permission in Azure. If the session is missing or expired, tools return *"Not signed in or session expired. Call the login tool ..."*.
+
+## 🗝️ Token storage
+
+The refresh token is the most sensitive thing this server holds, so by default (`OUTLOOK_TOKEN_STORE=auto`) it goes into the operating system keychain instead of a plain file. No native npm dependencies are used; the server calls the OS tools directly:
+
+| Platform | Backend | Notes |
+| --- | --- | --- |
+| macOS | Keychain via the `security` CLI | Service `outlook-mcp`, account = the cache path. |
+| Linux | Secret Service via `secret-tool` (libsecret) | Used only if `secret-tool` is installed and a keyring is running; otherwise the file store is used. |
+| Windows and others | File | `~/.config/outlook-mcp/token-cache.json`, mode `0600`. |
+
+- **Migration:** if a cache file exists and the keychain is still empty, it is imported into the keychain and the file is deleted.
+- **Fallback:** in `auto` mode, if the keychain cannot be used at runtime the server falls back to the file and logs a warning. `OUTLOOK_TOKEN_STORE=keychain` never falls back and fails instead; `file` never touches the keychain.
+- **Secrets stay out of process listings:** on Linux `secret-tool` reads the secret from stdin. `security add-generic-password` only accepts the password as a command-line argument (visible in `ps` to other local processes), so on macOS the commands are fed to `security -i` over stdin instead. That interface truncates lines at about 4 KB, so the cache is stored base64 encoded across a few small keychain items (`<account>#0`, `#1`, ...).
+- `logout` (tool and CLI) removes the keychain entry as well as the file.
+- On macOS the first access from a different binary may show a Keychain prompt; click *Always Allow*.
 
 ## 🛠️ Use your own Azure app (optional)
 
@@ -194,7 +211,7 @@ Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutati
 
 ## 🛡️ Security
 
-- 🔑 The token cache is stored locally with mode `0600` in a `0700` directory, written atomically.
+- 🔑 The token cache is stored in the OS keychain when available (macOS Keychain, Linux Secret Service; see [Token storage](#️-token-storage)), otherwise in a local file with mode `0600` in a `0700` directory, written atomically.
 - 🙅 No client secret exists: this is a public client using device code flow.
 - 🤐 Tokens and message bodies are never logged; MSAL PII logging is disabled.
 - 📥 Attachment downloads are confined to `OUTLOOK_DOWNLOAD_DIR`; path traversal is rejected.

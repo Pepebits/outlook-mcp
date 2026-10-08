@@ -1,7 +1,10 @@
 import { LogLevel, PublicClientApplication, type AccountInfo } from '@azure/msal-node';
 import type { Config } from '../config.js';
 import { log } from '../log.js';
+import fs from 'node:fs/promises';
+import type { ICachePlugin } from '@azure/msal-node';
 import { FileCachePlugin } from './cache.js';
+import { KeychainCachePlugin, selectTokenStore } from './keychain.js';
 
 export class AuthRequiredError extends Error {
   constructor(
@@ -12,13 +15,32 @@ export class AuthRequiredError extends Error {
   }
 }
 
+export function createCachePlugin(cfg: Config): ICachePlugin {
+  const store = selectTokenStore(cfg.tokenStore, cfg.tokenCachePath);
+  return store.kind === 'keychain'
+    ? new KeychainCachePlugin(store.backend, cfg.tokenCachePath, store.strict)
+    : new FileCachePlugin(cfg.tokenCachePath);
+}
+
+/** Deletes the token cache file and, where the platform has one, the keychain entry. */
+export async function clearTokenStore(cfg: Config): Promise<void> {
+  await fs.rm(cfg.tokenCachePath, { force: true });
+  if (cfg.tokenStore === 'file') return;
+  try {
+    const store = selectTokenStore(cfg.tokenStore, cfg.tokenCachePath);
+    if (store.kind === 'keychain') await store.backend.delete();
+  } catch (err) {
+    log.warn(`could not clear the keychain entry: ${(err as Error).message}`);
+  }
+}
+
 export function createPca(cfg: Config): PublicClientApplication {
   return new PublicClientApplication({
     auth: {
       clientId: cfg.clientId,
       authority: `https://login.microsoftonline.com/${cfg.tenant}`,
     },
-    cache: { cachePlugin: new FileCachePlugin(cfg.tokenCachePath) },
+    cache: { cachePlugin: createCachePlugin(cfg) },
     system: {
       loggerOptions: {
         piiLoggingEnabled: false,

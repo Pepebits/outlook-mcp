@@ -16,6 +16,7 @@ export interface Config {
   tenant: string;
   scopes: string[];
   tokenCachePath: string;
+  tokenStore: 'auto' | 'keychain' | 'file';
   readOnly: boolean;
   downloadDir: string;
   defaultTop: number;
@@ -28,6 +29,7 @@ const schema = z.object({
   OUTLOOK_TENANT: z.string().trim().min(1).default('consumers'),
   OUTLOOK_SCOPES: z.string().trim().min(1).default('User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access'),
   OUTLOOK_TOKEN_CACHE: z.string().trim().optional(),
+  OUTLOOK_TOKEN_STORE: z.enum(['auto', 'keychain', 'file']).default('auto'),
   OUTLOOK_READ_ONLY: z.string().trim().default('false'),
   OUTLOOK_DOWNLOAD_DIR: z.string().trim().optional(),
   OUTLOOK_DEFAULT_TOP: z.coerce.number().int().min(1).max(100).default(20),
@@ -62,6 +64,7 @@ export function parseConfig(env: NodeJS.ProcessEnv): Config {
     tokenCachePath: path.resolve(
       expandHome(e.OUTLOOK_TOKEN_CACHE ?? path.join(os.homedir(), '.config', 'outlook-mcp', 'token-cache.json')),
     ),
+    tokenStore: e.OUTLOOK_TOKEN_STORE,
     readOnly: ['1', 'true', 'yes', 'on'].includes(e.OUTLOOK_READ_ONLY.toLowerCase()),
     downloadDir: path.resolve(expandHome(e.OUTLOOK_DOWNLOAD_DIR ?? path.join(os.homedir(), 'Downloads'))),
     defaultTop: e.OUTLOOK_DEFAULT_TOP,
