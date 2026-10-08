@@ -212,6 +212,13 @@ claude mcp add outlook --scope user -- node /absolute/path/outlook-mcp/dist/inde
 
 Use `npm run inspect` to try the tools in the MCP Inspector.
 
+### 🚢 Releasing (maintainers)
+
+1. Move the `[Unreleased]` notes in `CHANGELOG.md` under the new version, bump `package.json`, commit and push.
+2. Tag it: `git tag -a vX.Y.Z -m "Short summary" && git push origin vX.Y.Z`. The Release workflow runs the tests, **stages** the version on npm (Trusted Publishing, with provenance) and creates the GitHub release.
+3. Approve the staged version on npmjs.com (or `npm stage approve <stage-id>`), which needs your 2FA.
+4. Run the Release workflow by hand (**Actions → Release → Run workflow**) with the tag to announce it on Telegram. It refuses to announce a version that is not installable yet.
+
 ## 🗺️ Roadmap
 
 - 📅 Calendar support (`Calendars.ReadWrite`)

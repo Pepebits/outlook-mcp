@@ -35,7 +35,9 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      - name: Publish to npm (Trusted Publishing)
+      # Stages the version on npm; a maintainer approves it on npmjs.com (2FA),
+      # then runs this workflow by hand to announce it.
+      - name: Stage npm release (Trusted Publishing)
         run: |
           npm install -g npm@latest
           name=$(node -p "require('./package.json').name")
@@ -43,7 +45,7 @@ jobs:
           if npm view "$name@$version" version >/dev/null 2>&1; then
             echo "::notice::$name@$version is already on npm; skipping publish"
           else
-            npm publish --provenance --access public
+            npm stage publish . --provenance --access public
           fi
       - name: Create GitHub release from the annotated tag
         env:
@@ -56,9 +58,29 @@ jobs:
             --title "$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" \
             --notes-file notes.md
 
+  # Runs only by hand, after the staged npm version has been approved.
+  check-npm:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Check that the version is installable from npm
+        run: |
+          name=$(node -p "require('./package.json').name")
+          version="${INPUT_TAG#v}"
+          if ! npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "::error::$name@$version is not on npm yet. Approve the staged release on npmjs.com first."
+            exit 1
+          fi
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+
   announce:
-    needs: release
-    if: always() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch')
+    needs: check-npm
     permissions:
       contents: read
     uses: Pepebits/release-announce/.github/workflows/announce.yml@v1
