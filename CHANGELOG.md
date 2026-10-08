@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- README setup for OpenAI Codex (`codex mcp add` and `config.toml`) and other MCP clients.
+
 ## [1.0.1] - 2026-10-08
 
 ### Added

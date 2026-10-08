@@ -1,6 +1,6 @@
 <p align="center"><img src="https://raw.githubusercontent.com/Pepebits/outlook-mcp/main/docs/banner.png" alt="outlook-mcp" width="720"></p>
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude (and any MCP client) read, search, send and organize your **Outlook / Microsoft 365 / Outlook.com** mail through the Microsoft Graph API.
+A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude, Codex and any other MCP client read, search, send and organize your **Outlook / Microsoft 365 / Outlook.com** mail through the Microsoft Graph API.
 
 ---
 
@@ -48,6 +48,27 @@ Add to `claude_desktop_config.json` and restart Claude Desktop:
   }
 }
 ```
+
+### Codex (OpenAI)
+
+```bash
+codex mcp add outlook -- npx -y @pepebits/outlook-mcp
+```
+
+Or add it to `~/.codex/config.toml` (shared by the Codex CLI and IDE extension):
+
+```toml
+[mcp_servers.outlook]
+command = "npx"
+args = ["-y", "@pepebits/outlook-mcp"]
+# env = { OUTLOOK_READ_ONLY = "true" }
+```
+
+Run `/mcp` inside Codex to check that it is connected.
+
+### Other MCP clients
+
+Any client that can launch a stdio MCP server works: run `npx -y @pepebits/outlook-mcp` as the server command.
 
 ### Sign in
 
