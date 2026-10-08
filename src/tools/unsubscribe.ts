@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { GraphClient } from '../graph/client.js';
 import { parseUnsubscribeHeaders, type UnsubscribeInfo } from '../util/unsubscribe.js';
+import { untrustedFields } from '../util/untrusted.js';
 import { idOrIds, runBulk } from './bulk.js';
 import type { ToolDef } from './index.js';
 
@@ -16,8 +17,11 @@ async function loadInfo(graph: GraphClient, id: string) {
   });
   const from = m.from?.emailAddress;
   return {
-    subject: m.subject ?? '',
-    from: from ? `${from.name ?? ''} <${from.address ?? ''}>`.trim() : '',
+    // Sender-controlled text, kept apart from the structural fields.
+    untrusted: untrustedFields({
+      from: from ? `${from.name ?? ''} <${from.address ?? ''}>`.trim() : '',
+      subject: m.subject ?? '',
+    }),
     info: parseUnsubscribeHeaders(m.internetMessageHeaders ?? []),
   };
 }
@@ -58,8 +62,8 @@ export const unsubscribeTools: ToolDef[] = [
     schema: { id: z.string().min(1) },
     mutating: false,
     async handler(a, { graph }) {
-      const { subject, from, info } = await loadInfo(graph, a.id);
-      return { from, subject, method: describe(info), ...info };
+      const { untrusted, info } = await loadInfo(graph, a.id);
+      return { untrusted, method: describe(info), ...info };
     },
   },
   {
@@ -70,12 +74,12 @@ export const unsubscribeTools: ToolDef[] = [
     mutating: true,
     async handler(a, { graph }) {
       return runBulk(a, async (id) => {
-        const { subject, from, info } = await loadInfo(graph, id);
+        const { untrusted, info } = await loadInfo(graph, id);
         if (info.oneClick) {
           const url = info.https[0];
           const result = await postOneClick(url);
-          if (!result.ok) return { from, subject, done: false, method: 'link', url, note: result.note };
-          return { from, subject, done: true, method: 'one-click', status: result.status };
+          if (!result.ok) return { untrusted, done: false, method: 'link', url, note: result.note };
+          return { untrusted, done: true, method: 'one-click', status: result.status };
         }
         const mailto = info.mailto[0];
         if (mailto) {
@@ -87,12 +91,12 @@ export const unsubscribeTools: ToolDef[] = [
             },
             saveToSentItems: true,
           });
-          return { from, subject, done: true, method: 'mailto', sentTo: mailto.address };
+          return { untrusted, done: true, method: 'mailto', sentTo: mailto.address };
         }
         if (info.https.length) {
-          return { from, subject, done: false, method: 'link', url: info.https[0], note: 'Open this link in a browser to finish.' };
+          return { untrusted, done: false, method: 'link', url: info.https[0], note: 'Open this link in a browser to finish.' };
         }
-        return { from, subject, done: false, method: 'none', note: 'No List-Unsubscribe header; use the link in the email body or block the sender.' };
+        return { untrusted, done: false, method: 'none', note: 'No List-Unsubscribe header; use the link in the email body or block the sender.' };
       });
     },
   },

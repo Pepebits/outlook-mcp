@@ -132,7 +132,8 @@ describe('unsubscribe', () => {
     vi.stubGlobal('fetch', f);
     const { graph } = fakeGraph(oneClick);
     const out = await run('unsubscribe', { id: 'm' }, makeCtx(graph));
-    expect(out).toMatchObject({ done: true, method: 'one-click', status: 200 });
+    expect(out).toMatchObject({ done: true, method: 'one-click', status: 200, untrusted: { from: 'Shop <s@shop.com>', subject: 'News' } });
+    expect(out).not.toHaveProperty('subject');
     expect(f).toHaveBeenCalledWith('https://shop.com/u?x=1', expect.objectContaining({ method: 'POST', body: 'List-Unsubscribe=One-Click' }));
   });
 

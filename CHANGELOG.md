@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Tool results that include message content now group sender-controlled text (subjects, senders, previews, attachment names) under an `untrusted` key instead of top-level `subject`, `from`, `preview` and `name` fields. This affects `list_messages`, `search_messages`, `get_message`, `list_attachments` and `find_newsletters`.
+- Tool results that include message content now group sender-controlled text (subjects, senders, previews, attachment names) under an `untrusted` key instead of top-level `subject`, `from`, `preview` and `name` fields. This affects `list_messages`, `search_messages`, `get_message`, `list_attachments`, `find_newsletters`, `get_unsubscribe_info` and `unsubscribe`.
 
 ### Security
 
