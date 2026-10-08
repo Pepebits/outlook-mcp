@@ -122,8 +122,12 @@ jobs:
       chat: ${{ inputs.chat || 'announcements' }}
       dry_run: ${{ inputs.dry_run || false }}
       notes_source: changelog
-      install_title: 🤖 Claude Code
-      install_command: claude mcp add outlook --scope user -- npx -y @pepebits/outlook-mcp@{version}
+      install_title: 🤖 Claude Code · Codex
+      install_command: |-
+        # Claude Code
+        claude mcp add outlook --scope user -- npx -y @pepebits/outlook-mcp@{version}
+        # Codex
+        codex mcp add outlook -- npx -y @pepebits/outlook-mcp@{version}
       buttons: >-
         [{"text": "📝 Changelog", "url": "{repo_url}/blob/{tag}/CHANGELOG.md"},
          {"text": "📖 Setup guide", "url": "{repo_url}/blob/{tag}/README.md"},
