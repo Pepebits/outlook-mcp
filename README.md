@@ -199,7 +199,8 @@ Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutati
 - 🤐 Tokens and message bodies are never logged; MSAL PII logging is disabled.
 - 📥 Attachment downloads are confined to `OUTLOOK_DOWNLOAD_DIR`; path traversal is rejected.
 - ⚠️ `delete_message` with `permanent: true` is **irreversible**, and `send_mail`, `reply_message` and `forward_message` send immediately. Prefer read-only mode or `create_draft` when in doubt.
-- 🧠 Email content is untrusted input: a malicious message may try to instruct the model (prompt injection). Review actions that send or delete.
+- 🧠 Email content is untrusted input: a malicious message may try to instruct the model (prompt injection). To help the model tell data from instructions, results from `get_message`, `list_messages`, `search_messages`, `list_attachments` and `find_newsletters` group sender-controlled text (subjects, senders, previews, attachment names) under an `untrusted` key and carry a `note` saying so. The `get_message` body is enclosed in `<untrusted_email_content>` markers, and any marker found inside the content is neutralized so it cannot close the wrapper early.
+- 🤝 The server also sends MCP `instructions` telling clients that email content is untrusted and that sending, deleting, unsubscribing and rule changes should be confirmed with the user. These are mitigations, not guarantees: keep a human in the loop for those actions or use read-only mode.
 
 ## 🩺 Troubleshooting
 
