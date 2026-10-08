@@ -8,6 +8,7 @@ import { log } from '../log.js';
 import { toTextResult } from '../util/format.js';
 import { accountTools } from './account.js';
 import { attachmentTools } from './attachments.js';
+import { bulkActionTools } from './bulkaction.js';
 import { composeTools } from './compose.js';
 import { digestTools } from './digest.js';
 import { folderTools } from './folders.js';
@@ -33,7 +34,7 @@ export interface ToolDef {
 }
 
 export function allTools(): ToolDef[] {
-  return [...accountTools, ...folderTools, ...messageTools, ...attachmentTools, ...composeTools, ...manageTools, ...unsubscribeTools, ...newsletterTools, ...digestTools, ...ruleTools];
+  return [...accountTools, ...folderTools, ...messageTools, ...attachmentTools, ...composeTools, ...manageTools, ...bulkActionTools, ...unsubscribeTools, ...newsletterTools, ...digestTools, ...ruleTools];
 }
 
 /** Pure selection function: drops mutating tools in read-only mode. */

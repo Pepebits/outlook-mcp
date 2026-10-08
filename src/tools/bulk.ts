@@ -53,6 +53,18 @@ export async function runBulk(
   const { ids, single } = resolveIds(a);
   if (single) return fn(ids[0]);
 
+  return runBulkIds(ids, fn, concurrency);
+}
+
+/**
+ * Runs `fn` for every id (no id-count cap, never stopping on the first error; results keep the
+ * input order). Callers are responsible for bounding `ids`.
+ */
+export async function runBulkIds(
+  ids: string[],
+  fn: (id: string) => Promise<unknown>,
+  concurrency = BULK_CONCURRENCY,
+): Promise<BulkResult> {
   const results = new Array<BulkItem>(ids.length);
   let next = 0;
   const worker = async () => {
@@ -68,5 +80,5 @@ export async function runBulk(
   };
   await Promise.all(Array.from({ length: Math.min(concurrency, ids.length) }, worker));
   const succeeded = results.filter((r) => r.ok).length;
-  return { results, succeeded, failed: results.length - succeeded } satisfies BulkResult;
+  return { results, succeeded, failed: results.length - succeeded };
 }

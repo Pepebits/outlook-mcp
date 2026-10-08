@@ -5,7 +5,7 @@ describe('read-only mode', () => {
   const names = (ro: boolean) => selectTools(allTools(), ro).map((t) => t.name);
   it('removes every mutating tool', () => {
     const ro = names(true);
-    for (const n of ['send_mail', 'create_draft', 'reply_message', 'forward_message', 'move_message', 'mark_read', 'flag_message', 'delete_message', 'create_rule', 'delete_rule', 'block_sender']) {
+    for (const n of ['send_mail', 'create_draft', 'reply_message', 'forward_message', 'move_message', 'mark_read', 'flag_message', 'delete_message', 'bulk_action', 'create_rule', 'delete_rule', 'block_sender']) {
       expect(ro).not.toContain(n);
       expect(names(false)).toContain(n);
     }

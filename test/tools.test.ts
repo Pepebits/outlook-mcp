@@ -370,3 +370,86 @@ describe('download_attachment', () => {
     }
   });
 });
+
+describe('bulk_action', () => {
+  const inbox = (ids: string[], next?: string): Route =>
+    on('GET', '/me/mailFolders/inbox/messages', { json: { value: ids.map((i) => msg(i)), '@odata.nextLink': next } });
+  const mutations = (calls: { method: string }[]) => calls.filter((c) => c.method !== 'GET');
+
+  it('dry run is the default, changes nothing and wraps the sample', async () => {
+    const ids = Array.from({ length: 15 }, (_, i) => `m${i}`);
+    const { graph, calls } = fakeGraph(inbox(ids));
+    const out = await run('bulk_action', { from: 'ann@x.com', action: 'delete' }, makeCtx(graph));
+    expect(out).toMatchObject({ dryRun: true, matched: 15, truncated: false, next: 'Call again with dryRun: false to apply.' });
+    expect(out.sample).toHaveLength(10);
+    expect(out.sample[0].untrusted.subject).toBe('subject m0');
+    expect(out.sample[0]).not.toHaveProperty('subject');
+    expect(mutations(calls)).toEqual([]);
+  });
+
+  it('applies with partial failure and reports ids with ok/error only', async () => {
+    const { graph, calls } = fakeGraph(
+      inbox(['a', 'b', 'c']),
+      on('POST', '/me/messages/a/move', { json: { id: 'a2' } }),
+      on('POST', '/me/messages/b/move', graphError(404, 'ErrorItemNotFound')),
+      on('POST', '/me/messages/c/move', { json: { id: 'c2' } }),
+    );
+    const out = await run('bulk_action', { unreadOnly: true, action: 'delete', dryRun: false }, makeCtx(graph));
+    expect(out).toMatchObject({ dryRun: false, applied: 3, succeeded: 2, failed: 1 });
+    expect(out.results.map((r: any) => [r.id, r.ok])).toEqual([['a', true], ['b', false], ['c', true]]);
+    expect(out.results[0]).toEqual({ id: 'a', ok: true });
+    expect(out.results[1].error).toMatch(/not found/i);
+    expect(mutations(calls).map((c) => c.body)).toEqual([{ destinationId: 'deleteditems' }, { destinationId: 'deleteditems' }, { destinationId: 'deleteditems' }]);
+  });
+
+  it('archive, move and flag actions hit the right endpoints', async () => {
+    const { graph, calls } = fakeGraph(
+      inbox(['a']),
+      on('POST', '/me/messages/a/move', { json: { id: 'a2' } }),
+      on('PATCH', '/me/messages/a', { json: {} }),
+    );
+    const ctx = makeCtx(graph);
+    await run('bulk_action', { folderId: 'inbox', action: 'archive', dryRun: false }, ctx);
+    await run('bulk_action', { folderId: 'inbox', action: 'move', destinationFolderId: 'Junk', dryRun: false }, ctx);
+    await run('bulk_action', { folderId: 'inbox', action: 'flag', dryRun: false }, ctx);
+    await run('bulk_action', { folderId: 'inbox', action: 'markUnread', dryRun: false }, ctx);
+    expect(mutations(calls).map((c) => c.body)).toEqual([
+      { destinationId: 'archive' },
+      { destinationId: 'junkemail' },
+      { flag: { flagStatus: 'flagged' } },
+      { isRead: false },
+    ]);
+  });
+
+  it('rejects query combined with filters', async () => {
+    const { graph, calls } = fakeGraph();
+    await expect(run('bulk_action', { query: 'from:ann', unreadOnly: true, action: 'delete' }, makeCtx(graph))).rejects.toThrow(/cannot be combined/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('move needs a destination', async () => {
+    const { graph, calls } = fakeGraph();
+    await expect(run('bulk_action', { from: 'a@x.com', action: 'move' }, makeCtx(graph))).rejects.toThrow(/destinationFolderId/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('pages up to max and flags truncation', async () => {
+    const next = 'https://graph.test/v1.0/me/mailFolders/inbox/messages?$skiptoken=2';
+    const { graph } = fakeGraph(
+      (r) => (r.path.includes('$skiptoken=2') ? { json: { value: [msg('c'), msg('d')], '@odata.nextLink': 'https://graph.test/v1.0/more' } } : undefined),
+      inbox(['a', 'b'], next),
+    );
+    const out = await run('bulk_action', { from: 'ann@x.com', action: 'delete', max: 3 }, makeCtx(graph));
+    expect(out).toMatchObject({ matched: 3, truncated: true });
+  });
+
+  it('caps max at 500 and uses $search for query', async () => {
+    const { graph, calls } = fakeGraph(on('GET', '/me/messages', { json: { value: [msg('a')] } }));
+    await run('bulk_action', { query: 'from:ann', action: 'delete' }, makeCtx(graph));
+    expect(calls[0].url.searchParams.get('$search')).toBe('"from:ann"');
+    expect(calls[0].headers.ConsistencyLevel).toBe('eventual');
+    expect(calls[0].url.searchParams.get('$filter')).toBeNull();
+    expect(tool('bulk_action').schema.max.safeParse(501).success).toBe(false);
+    expect(tool('bulk_action').schema.max.safeParse(500).success).toBe(true);
+  });
+});
