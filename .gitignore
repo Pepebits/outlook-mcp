@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+.env.*.local
+token-cache.json
+*.token-cache.json
+.outlook-mcp/
+coverage/

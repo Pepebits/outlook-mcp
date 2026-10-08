@@ -1,0 +1,60 @@
+{
+  "name": "outlook-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Outlook / Microsoft 365 mail via Microsoft Graph (device code auth)",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "outlook-mcp": "dist/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "auth": "tsx src/index.ts auth",
+    "whoami": "tsx src/index.ts whoami",
+    "logout": "tsx src/index.ts logout",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "inspect": "npx @modelcontextprotocol/inspector node dist/index.js"
+  },
+  "keywords": [
+    "mcp",
+    "outlook",
+    "microsoft-graph",
+    "email",
+    "claude"
+  ],
+  "dependencies": {
+    "@azure/msal-node": "^7.0.1",
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "dotenv": "^18.0.6",
+    "html-to-text": "^10.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@microsoft/microsoft-graph-types": "^2.43.1",
+    "@types/html-to-text": "^9.0.4",
+    "@types/node": "^26.6.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Pepebits/outlook-mcp.git"
+  },
+  "homepage": "https://github.com/Pepebits/outlook-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/Pepebits/outlook-mcp/issues"
+  }
+}
