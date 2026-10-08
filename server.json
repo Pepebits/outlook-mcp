@@ -7,12 +7,12 @@
     "url": "https://github.com/Pepebits/outlook-mcp",
     "source": "github"
   },
-  "version": "1.0.1",
+  "version": "1.1.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@pepebits/outlook-mcp",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "transport": {
         "type": "stdio"
       },
@@ -34,6 +34,13 @@
         {
           "name": "OUTLOOK_READ_ONLY",
           "description": "Set to true to expose only read-only tools.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "OUTLOOK_TOKEN_STORE",
+          "description": "auto (default), keychain or file: where the token cache is stored.",
           "isRequired": false,
           "format": "string",
           "isSecret": false
