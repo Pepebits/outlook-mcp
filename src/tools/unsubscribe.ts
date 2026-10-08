@@ -28,6 +28,27 @@ function describe(info: UnsubscribeInfo): string {
   return 'none: the sender does not advertise List-Unsubscribe';
 }
 
+export type OneClickResult = { ok: true; status: number } | { ok: false; note: string };
+
+/** POSTs an RFC 8058 one-click request. Never throws: failures become a note with the fallback link advice. */
+export async function postOneClick(url: string, fetchFn: typeof fetch = fetch): Promise<OneClickResult> {
+  try {
+    const res = await fetchFn(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'List-Unsubscribe=One-Click',
+      redirect: 'follow',
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!res.ok) return { ok: false, note: `One-click was refused (HTTP ${res.status}). Open this link in a browser to finish.` };
+    return { ok: true, status: res.status };
+  } catch (err) {
+    const cause = (err as { cause?: { message?: string } }).cause?.message;
+    const reason = cause ?? (err instanceof Error ? err.message : String(err));
+    return { ok: false, note: `One-click request failed (${reason}). Open this link in a browser to finish.` };
+  }
+}
+
 export const unsubscribeTools: ToolDef[] = [
   {
     name: 'get_unsubscribe_info',
@@ -50,17 +71,9 @@ export const unsubscribeTools: ToolDef[] = [
       const { subject, from, info } = await loadInfo(graph, a.id);
       if (info.oneClick) {
         const url = info.https[0];
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'List-Unsubscribe=One-Click',
-          redirect: 'follow',
-          signal: AbortSignal.timeout(15000),
-        });
-        if (!res.ok) {
-          return { from, subject, done: false, method: 'link', url, note: `One-click was refused (HTTP ${res.status}). Open this link in a browser to finish.` };
-        }
-        return { from, subject, done: true, method: 'one-click', status: res.status };
+        const result = await postOneClick(url);
+        if (!result.ok) return { from, subject, done: false, method: 'link', url, note: result.note };
+        return { from, subject, done: true, method: 'one-click', status: result.status };
       }
       const mailto = info.mailto[0];
       if (mailto) {
