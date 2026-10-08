@@ -1,10 +1,12 @@
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { z } from 'zod';
+import type { AuthSession } from '../auth/session.js';
 import type { Config } from '../config.js';
 import type { GraphClient } from '../graph/client.js';
 import { mapGraphError } from '../graph/errors.js';
 import { log } from '../log.js';
 import { toTextResult } from '../util/format.js';
+import { accountTools } from './account.js';
 import { attachmentTools } from './attachments.js';
 import { composeTools } from './compose.js';
 import { folderTools } from './folders.js';
@@ -17,6 +19,7 @@ import { unsubscribeTools } from './unsubscribe.js';
 export interface ToolContext {
   graph: GraphClient;
   cfg: Config;
+  auth: AuthSession;
 }
 
 export interface ToolDef {
@@ -29,7 +32,7 @@ export interface ToolDef {
 }
 
 export function allTools(): ToolDef[] {
-  return [...folderTools, ...messageTools, ...attachmentTools, ...composeTools, ...manageTools, ...unsubscribeTools, ...newsletterTools, ...ruleTools];
+  return [...accountTools, ...folderTools, ...messageTools, ...attachmentTools, ...composeTools, ...manageTools, ...unsubscribeTools, ...newsletterTools, ...ruleTools];
 }
 
 /** Pure selection function: drops mutating tools in read-only mode. */

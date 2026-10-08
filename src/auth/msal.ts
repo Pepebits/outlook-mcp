@@ -5,7 +5,7 @@ import { FileCachePlugin } from './cache.js';
 
 export class AuthRequiredError extends Error {
   constructor(
-    message = 'Not signed in or session expired. Run `npm run auth` (or `npx outlook-mcp auth`) in a terminal, then retry.',
+    message = 'Not signed in or session expired. Call the login tool (or run `npm run auth` in a terminal), then retry.',
   ) {
     super(message);
     this.name = 'AuthRequiredError';
