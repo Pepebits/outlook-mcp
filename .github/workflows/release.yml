@@ -1,0 +1,62 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag, e.g. v0.1.0
+        required: true
+      chat:
+        type: choice
+        options: [test, announcements]
+        default: test
+      dry_run:
+        type: boolean
+        default: true
+
+jobs:
+  release:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - name: Create GitHub release from the annotated tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+          git tag -l --format='%(contents:body)' "$GITHUB_REF_NAME" > notes.md
+          gh release create "$GITHUB_REF_NAME" \
+            --title "$(git tag -l --format='%(contents:subject)' "$GITHUB_REF_NAME")" \
+            --notes-file notes.md
+
+  announce:
+    needs: release
+    if: always() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch')
+    permissions:
+      contents: read
+    uses: Pepebits/release-announce/.github/workflows/announce.yml@v1
+    with:
+      tag: ${{ inputs.tag || github.ref_name }}
+      chat: ${{ inputs.chat || 'announcements' }}
+      dry_run: ${{ inputs.dry_run || false }}
+      notes_source: tag
+      install_title: 📦 Install
+      install_command: git clone --branch {tag} https://github.com/Pepebits/outlook-mcp.git && cd outlook-mcp && npm ci && npm run build
+      buttons: >-
+        [{"text": "📝 Notes", "url": "{repo_url}/releases/tag/{tag}"},
+         {"text": "📖 Setup guide", "url": "{repo_url}/blob/{tag}/README.md"}]
+    secrets: inherit
