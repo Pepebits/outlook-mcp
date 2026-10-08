@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { GraphClient } from '../graph/client.js';
 import { parseUnsubscribeHeaders, type UnsubscribeInfo } from '../util/unsubscribe.js';
+import { idOrIds, runBulk } from './bulk.js';
 import type { ToolDef } from './index.js';
 
 interface HeaderMessage {
@@ -64,33 +65,35 @@ export const unsubscribeTools: ToolDef[] = [
   {
     name: 'unsubscribe',
     description:
-      'Unsubscribe from the mailing list a message came from, using its List-Unsubscribe header. Prefers RFC 8058 one-click (an HTTPS POST), then sends the mailto request from your account. If only a web link exists, returns it for the user to open. Never use this on spam or phishing: unsubscribing confirms the address is active.',
-    schema: { id: z.string().min(1) },
+      'Unsubscribe from the mailing list a message came from, using its List-Unsubscribe header. Prefers RFC 8058 one-click (an HTTPS POST), then sends the mailto request from your account. If only a web link exists, returns it for the user to open. Accepts id or ids (up to 50). Never use this on spam or phishing: unsubscribing confirms the address is active.',
+    schema: { ...idOrIds },
     mutating: true,
     async handler(a, { graph }) {
-      const { subject, from, info } = await loadInfo(graph, a.id);
-      if (info.oneClick) {
-        const url = info.https[0];
-        const result = await postOneClick(url);
-        if (!result.ok) return { from, subject, done: false, method: 'link', url, note: result.note };
-        return { from, subject, done: true, method: 'one-click', status: result.status };
-      }
-      const mailto = info.mailto[0];
-      if (mailto) {
-        await graph.post('/me/sendMail', {
-          message: {
-            subject: mailto.subject,
-            body: { contentType: 'Text', content: mailto.body },
-            toRecipients: [{ emailAddress: { address: mailto.address } }],
-          },
-          saveToSentItems: true,
-        });
-        return { from, subject, done: true, method: 'mailto', sentTo: mailto.address };
-      }
-      if (info.https.length) {
-        return { from, subject, done: false, method: 'link', url: info.https[0], note: 'Open this link in a browser to finish.' };
-      }
-      return { from, subject, done: false, method: 'none', note: 'No List-Unsubscribe header; use the link in the email body or block the sender.' };
+      return runBulk(a, async (id) => {
+        const { subject, from, info } = await loadInfo(graph, id);
+        if (info.oneClick) {
+          const url = info.https[0];
+          const result = await postOneClick(url);
+          if (!result.ok) return { from, subject, done: false, method: 'link', url, note: result.note };
+          return { from, subject, done: true, method: 'one-click', status: result.status };
+        }
+        const mailto = info.mailto[0];
+        if (mailto) {
+          await graph.post('/me/sendMail', {
+            message: {
+              subject: mailto.subject,
+              body: { contentType: 'Text', content: mailto.body },
+              toRecipients: [{ emailAddress: { address: mailto.address } }],
+            },
+            saveToSentItems: true,
+          });
+          return { from, subject, done: true, method: 'mailto', sentTo: mailto.address };
+        }
+        if (info.https.length) {
+          return { from, subject, done: false, method: 'link', url: info.https[0], note: 'Open this link in a browser to finish.' };
+        }
+        return { from, subject, done: false, method: 'none', note: 'No List-Unsubscribe header; use the link in the email body or block the sender.' };
+      });
     },
   },
 ];
