@@ -78,20 +78,22 @@ By default the server uses the shared **outlook-mcp** Azure app, which supports 
 
 ## ⚙️ Configuration (`.env`)
 
-The `.env` file is optional. Variables are read from `.env` in the current directory and in the package directory, and real environment variables override it. You can also pass them through your MCP client's env block, e.g. `claude mcp add outlook --scope user -e OUTLOOK_TENANT=organizations -e OUTLOOK_CLIENT_ID=your-client-id -- npx -y @pepebits/outlook-mcp`.
+The `.env` file is optional. Variables are read from `.env` in the package directory and from the file named by `OUTLOOK_ENV_FILE`, and real environment variables override both. A `.env` in the current directory is **not** read: MCP clients often start the server inside some project, and a `.env` there could redirect downloads or the token cache. You can also pass them through your MCP client's env block, e.g. `claude mcp add outlook --scope user -e OUTLOOK_TENANT=organizations -e OUTLOOK_CLIENT_ID=your-client-id -- npx -y @pepebits/outlook-mcp`.
 
 | Variable | Default | Description |
 | --- | --- | --- |
 | `OUTLOOK_CLIENT_ID` | shared outlook-mcp app | Application (client) ID of your own Azure app registration (optional). |
 | `OUTLOOK_TENANT` | `consumers` | Authority tenant: `consumers` (personal), `organizations` (work/school), `common` (both) or a tenant GUID. |
-| `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access` | Space-separated delegated Graph scopes requested at sign-in. |
+| `OUTLOOK_ENV_FILE` | none | Path of a `.env` file to load (set it as a real environment variable). |
+| `OUTLOOK_SCOPES` | `User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite offline_access` (read-only mode: `User.Read Mail.Read MailboxSettings.Read offline_access`) | Space-separated delegated Graph scopes requested at sign-in. |
 | `OUTLOOK_TOKEN_STORE` | `auto` | Where the token cache lives: `auto` (OS keychain when available, else file), `keychain` (fails if no keychain) or `file`. See [Token storage](#️-token-storage). |
 | `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Token cache file (mode `0600`) for the `file` store; also identifies the keychain entry. |
-| `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered at all. |
+| `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered, the Graph client refuses every non-GET request and the default scopes are read-only. See [Read-only mode](#️-read-only-mode). |
 | `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` | The only directory attachments may be written to. |
+| `OUTLOOK_ATTACH_DIRS` | download dir, `~/Documents`, `~/Desktop` | Directories (separated by `:`, or `;` on Windows) that `send_mail` and `create_draft` may attach files from. Hidden files and folders are always refused. |
 | `OUTLOOK_DEFAULT_TOP` | `20` | Default page size for list/search tools (1-100). |
 | `OUTLOOK_MAX_BODY_CHARS` | `20000` | Maximum body characters returned by `get_message`. |
-| `OUTLOOK_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Graph endpoint (change for national clouds). |
+| `OUTLOOK_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Graph endpoint. Must be https on a Microsoft Graph host (`graph.microsoft.com`, `graph.microsoft.us`, `dod-graph.microsoft.us`, `microsoftgraph.chinacloudapi.cn`). |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` (written to stderr). |
 
 ## 🔐 Authentication
@@ -169,21 +171,21 @@ By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works 
 | `login` | no | Start a device code sign-in; returns the URL and code (`force` to sign in again). |
 | `auth_status` | no | Signed in, pending sign-in or signed out. |
 | `logout` | no | Sign out and delete the local token cache. |
-| `list_folders` | no | List mail folders or child folders (`parentFolderId`, `includeHidden`). |
+| `list_folders` | no | List mail folders or child folders (`parentFolderId`, `includeHidden`) with `nextLink` paging. |
 | `list_messages` | no | List messages, newest first, with filters (`unreadOnly`, `from`, `since`, `until`, `hasAttachments`) and `nextLink` paging. |
 | `search_messages` | no | KQL full-text search with `nextLink` paging. |
-| `get_message` | no | Full message with recipients, flags and body (`format` text/html, `maxChars`). |
+| `get_message` | no | Full message with recipients, flags and body (`format` text, or html for the raw HTML; `maxChars`). |
 | `list_attachments` | no | Attachment metadata for a message. |
 | `download_attachment` | no | Save an attachment into `OUTLOOK_DOWNLOAD_DIR` (writes locally only; no overwrite unless `overwrite: true`). |
-| `send_mail` | yes | Send an email, optionally with local attachments up to 150 MB (3 MB or more go through an upload session; if an upload fails nothing is sent). |
-| `create_draft` | yes | Create a draft without sending. Attachments up to 150 MB; failed uploads are reported and the draft is kept. |
+| `send_mail` | yes | Send an email, optionally `from` an alias or SendAs identity (with `fromName`) and with local attachments from `OUTLOOK_ATTACH_DIRS` up to 150 MB each (files beyond a shared ~3 MB inline budget go through an upload session; if an upload fails nothing is sent). |
+| `create_draft` | yes | Create a draft without sending. Same `from`, `fromName` and attachment rules as `send_mail`; failed uploads are reported and the draft is kept. |
 | `reply_message` | yes | Reply or reply-all (`replyAll`). |
 | `forward_message` | yes | Forward to new recipients. |
 | `move_message` | yes | Move to a folder; returns the new id. Accepts `id` or `ids` (up to 50). |
 | `mark_read` | yes | Mark read or unread. Accepts `id` or `ids` (up to 50). |
 | `flag_message` | yes | `flagged`, `complete` or `notFlagged`. Accepts `id` or `ids` (up to 50). |
 | `delete_message` | yes | Move to Deleted Items, or `permanent: true` to delete irreversibly. Accepts `id` or `ids` (up to 50). |
-| `bulk_action` | yes | Apply `delete`, `move`, `archive`, `markRead`, `markUnread`, `flag` or `unflag` to every message matching a `query` (KQL) or filters (`folderId`, `from`, `since`, `until`, `unreadOnly`, `hasAttachments`). `dryRun` is on by default; `max` defaults to 100 (hard cap 500). |
+| `bulk_action` | yes | Apply `delete`, `move`, `archive`, `markRead`, `markUnread`, `flag` or `unflag` to every message matching a `query` (KQL) or filters (`folderId`, `from`, `since`, `until`, `unreadOnly`, `hasAttachments`). Two steps: a dry run (the default) returns the count, a sample and a `selectionId`; `{ selectionId, dryRun: false }` applies the action to exactly those messages. `max` defaults to 100 (hard cap 500). |
 | `get_unsubscribe_info` | no | Show how to leave the mailing list a message came from (List-Unsubscribe). |
 | `unsubscribe` | yes | Leave a mailing list: RFC 8058 one-click, else a mailto request, else returns the link. Accepts `id` or `ids` (up to 50). |
 | `find_newsletters` | no | Scan a folder (`folderId`, `maxMessages` up to 2000, `excludeDomains`, `includeNoUnsubscribe`), group by sender and report mailing lists with their unsubscribe method, most frequent first. |
@@ -213,32 +215,43 @@ Inbox rules need the `MailboxSettings.ReadWrite` permission (see the Azure steps
 
 ## 🔎 Bulk clean-up by search
 
-Ask *"Archive everything from newsletters@shop.com received before 2025"*. `bulk_action` always starts as a **dry run**: it changes nothing and returns the match count plus a sample of 10 messages.
+Ask *"Archive everything from newsletters@shop.com received before 2025"*. `bulk_action` always starts as a **dry run**: it changes nothing and returns the match count, a sample of 10 messages and a `selectionId`.
 
 ```json
-{ "from": "newsletters@shop.com", "until": "2025-01-01", "action": "archive" }
+{ "from": "newsletters@shop.com", "until": "2024-12-31", "action": "archive" }
 ```
 
-Confirm the count with the assistant, then it calls the tool again with `dryRun: false` to apply the action:
+Confirm the count with the assistant, then it calls the tool again with only the `selectionId` to apply the action:
 
 ```json
-{ "from": "newsletters@shop.com", "until": "2025-01-01", "action": "archive", "dryRun": false }
+{ "selectionId": "3f0c…", "dryRun": false }
 ```
+
+The action is applied to exactly the messages that were previewed, never to mail that arrived afterwards. A `selectionId` works once and expires after 10 minutes; `dryRun: false` without one is refused. A date without a time in `until` includes that whole day (UTC).
 
 Use either `query` (KQL, e.g. `from:shop.com hasattachments:true`) or the filter fields, not both. At most `max` messages are processed (default 100, hard cap 500) and the response says if the result was `truncated`; run it again for the rest. `delete` moves to Deleted Items (recoverable), `archive` moves to the Archive folder, and `move` needs `destinationFolderId`. Failures never stop the run: the response lists each id with `ok` or `error`.
 
 ## 👁️ Read-only mode
 
-Set `OUTLOOK_READ_ONLY=true` to register only the non-mutating tools. The mutating tools do not exist for the client, so they cannot be called at all. Combine it with a token cache created using only `User.Read Mail.Read` (set `OUTLOOK_SCOPES` accordingly and re-run `npx -y @pepebits/outlook-mcp auth`) for defense in depth.
+Set `OUTLOOK_READ_ONLY=true` for three layers of protection:
+
+1. Only the non-mutating tools are registered, so the client cannot call the others at all.
+2. The Graph client refuses every request other than GET before it is sent.
+3. Unless `OUTLOOK_SCOPES` is set, sign-in asks only for `User.Read Mail.Read MailboxSettings.Read offline_access`.
+
+A token cache created earlier keeps the scopes it was granted: run `logout` and sign in again so the token itself cannot write. Switching back to read-write needs a new sign-in too.
 
 ## 🛡️ Security
 
 - 🔑 The token cache is stored in the OS keychain when available (macOS Keychain, Linux Secret Service; see [Token storage](#️-token-storage)), otherwise in a local file with mode `0600` in a `0700` directory, written atomically.
 - 🙅 No client secret exists: this is a public client using device code flow.
 - 🤐 Tokens and message bodies are never logged; MSAL PII logging is disabled.
-- 📥 Attachment downloads are confined to `OUTLOOK_DOWNLOAD_DIR`; path traversal is rejected.
+- 📥 Attachment downloads are confined to `OUTLOOK_DOWNLOAD_DIR`; path traversal and symlinks that lead outside it are rejected.
+- 📤 `send_mail` and `create_draft` only attach files inside `OUTLOOK_ATTACH_DIRS` (checked after resolving symlinks) and never hidden files such as `~/.ssh/*` or `.env`, so an injected instruction cannot mail out arbitrary local files.
+- 🌐 The access token is only sent to the configured Microsoft Graph origin: a `nextLink` pointing anywhere else is refused. One-click unsubscribe requests only go to https URLs on public addresses, and each redirect is checked again.
+- 🔁 Requests that may already have been processed (`POST` after a gateway error or a dropped connection) are never retried automatically, so a message is not sent twice.
 - ⚠️ `delete_message` with `permanent: true` is **irreversible**, and `send_mail`, `reply_message` and `forward_message` send immediately. Prefer read-only mode or `create_draft` when in doubt.
-- 🧠 Email content is untrusted input: a malicious message may try to instruct the model (prompt injection). To help the model tell data from instructions, results from `get_message`, `list_messages`, `search_messages`, `list_attachments` and `find_newsletters` group sender-controlled text (subjects, senders, previews, attachment names) under an `untrusted` key and carry a `note` saying so. The `get_message` body is enclosed in `<untrusted_email_content>` markers, and any marker found inside the content is neutralized so it cannot close the wrapper early.
+- 🧠 Email content is untrusted input: a malicious message may try to instruct the model (prompt injection). To help the model tell data from instructions, results from `get_message`, `list_messages`, `search_messages`, `list_attachments`, `find_newsletters`, `get_unsubscribe_info` and `unsubscribe` group sender-controlled text (subjects, senders, previews, attachment names and types, unsubscribe links and mailto fields) under an `untrusted` key and carry a `note` saying so. The `get_message` body is enclosed in `<untrusted_email_content>` markers, and any marker found inside the content is neutralized so it cannot close the wrapper early.
 - 🤝 The server also sends MCP `instructions` telling clients that email content is untrusted and that sending, deleting, unsubscribing and rule changes should be confirmed with the user. These are mitigations, not guarantees: keep a human in the loop for those actions or use read-only mode.
 
 ## 🩺 Troubleshooting
