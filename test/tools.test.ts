@@ -369,6 +369,21 @@ describe('download_attachment', () => {
       await fs.rm(dir, { recursive: true, force: true });
     }
   });
+  it('refuses to write through a symlinked directory that points outside the download directory', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'outlook-mcp-dl-'));
+    const outside = await fs.mkdtemp(path.join(os.tmpdir(), 'outlook-mcp-out-'));
+    try {
+      await fs.symlink(outside, path.join(dir, 'link'));
+      const { graph } = fakeGraph(on('GET', '/me/messages/m1/attachments/a1/$value', { json: { x: 1 } }));
+      await expect(
+        run('download_attachment', { messageId: 'm1', attachmentId: 'a1', path: 'link/x.txt' }, makeCtx(graph, { OUTLOOK_DOWNLOAD_DIR: dir })),
+      ).rejects.toThrow(/resolves outside/);
+      expect(await fs.readdir(outside)).toEqual([]);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(outside, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('bulk_action', () => {

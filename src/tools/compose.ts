@@ -4,10 +4,15 @@ import { z } from 'zod';
 import type { GraphClient } from '../graph/client.js';
 import { mapGraphError } from '../graph/errors.js';
 import type { Message } from '../graph/types.js';
+import { resolveAttachmentPath } from '../util/paths.js';
 import { uploadFileInChunks } from '../util/upload.js';
 import type { ToolDef } from './index.js';
 
-const INLINE_LIMIT_BYTES = 3 * 1024 * 1024;
+/**
+ * Graph caps a JSON request at about 4 MB; base64 adds a third. Inline attachments share this raw
+ * budget, and anything that does not fit goes through an upload session.
+ */
+const INLINE_BUDGET_BYTES = 3 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES = 150 * 1024 * 1024;
 
 const toRecipients = (list?: string[]) => (list ?? []).map((address) => ({ emailAddress: { address } }));
@@ -18,27 +23,42 @@ interface LargeAttachment {
   size: number;
 }
 
-/** Validates every file; small ones become inline base64 attachments, large ones need an upload session. */
-async function buildAttachments(items?: { path: string }[]) {
-  const inline = [];
-  const large: LargeAttachment[] = [];
+/**
+ * Validates every file against the allowed roots (ADR 0002). Small files become inline base64
+ * attachments while they fit the shared inline budget; the rest need an upload session.
+ */
+async function buildAttachments(items: { path: string }[] | undefined, roots: string[]) {
+  const files: LargeAttachment[] = [];
   for (const item of items ?? []) {
-    const stat = await fs.stat(item.path).catch(() => {
-      throw new Error(`Attachment file not found: ${item.path}`);
-    });
+    const real = await resolveAttachmentPath(roots, item.path);
+    const stat = await fs.stat(real);
     if (!stat.isFile()) throw new Error(`Attachment is not a file: ${item.path}`);
     const name = path.basename(item.path);
     if (stat.size > MAX_ATTACHMENT_BYTES) {
       throw new Error(`Attachment "${name}" is ${stat.size} bytes; the maximum is 150 MB.`);
     }
-    if (stat.size >= INLINE_LIMIT_BYTES) {
-      large.push({ path: item.path, name, size: stat.size });
+    files.push({ path: real, name, size: stat.size });
+  }
+  const inline = [];
+  const large: LargeAttachment[] = [];
+  let budget = INLINE_BUDGET_BYTES;
+  // Smallest first, so as many files as possible travel inline; output keeps the caller's order.
+  const inlineSet = new Set<LargeAttachment>();
+  for (const f of [...files].sort((x, y) => x.size - y.size)) {
+    if (f.size < budget) {
+      inlineSet.add(f);
+      budget -= f.size;
+    }
+  }
+  for (const f of files) {
+    if (!inlineSet.has(f)) {
+      large.push(f);
       continue;
     }
     inline.push({
       '@odata.type': '#microsoft.graph.fileAttachment',
-      name,
-      contentBytes: (await fs.readFile(item.path)).toString('base64'),
+      name: f.name,
+      contentBytes: (await fs.readFile(f.path)).toString('base64'),
     });
   }
   return { inline, large };
@@ -52,11 +72,15 @@ const composeShape = {
   body: z.string(),
   bodyType: z.enum(['text', 'html']).optional().describe('Default text'),
   from: z.string().email().optional().describe('From address: must be the signed-in mailbox or one of its aliases / SendAs identities'),
-  fromName: z.string().max(100).optional().describe('Display name shown with the From address (e.g. Fox)'),
-  attachments: z.array(z.object({ path: z.string() })).optional().describe('Local files (up to 150 MB each; files of 3 MB or more are sent through an upload session)'),
+  fromName: z.string().max(100).optional().describe('Display name shown with the From address (e.g. Fox); requires from'),
+  attachments: z
+    .array(z.object({ path: z.string() }))
+    .optional()
+    .describe('Local files inside OUTLOOK_ATTACH_DIRS (default: download dir, ~/Documents, ~/Desktop); hidden files are refused. Up to 150 MB each; files that do not fit the ~3 MB inline budget go through an upload session'),
 };
 
-async function buildMessage(a: any) {
+async function buildMessage(a: any, roots: string[]) {
+  if (a.fromName !== undefined && a.from === undefined) throw new Error('fromName needs from: set the From address as well.');
   const message: Record<string, unknown> = {
     subject: a.subject,
     body: { contentType: a.bodyType === 'html' ? 'HTML' : 'Text', content: a.body },
@@ -65,7 +89,7 @@ async function buildMessage(a: any) {
     bccRecipients: toRecipients(a.bcc),
   };
   if (a.from) message.from = { emailAddress: { address: a.from, ...(a.fromName ? { name: a.fromName } : {}) } };
-  const { inline, large } = await buildAttachments(a.attachments);
+  const { inline, large } = await buildAttachments(a.attachments, roots);
   if (inline.length) message.attachments = inline;
   return { message, large };
 }
@@ -84,11 +108,11 @@ const errText = (err: unknown) => mapGraphError(err).message;
 export const composeTools: ToolDef[] = [
   {
     name: 'send_mail',
-    description: 'Send an email immediately. This cannot be undone. Attachments of 3 MB or more (up to 150 MB) are uploaded in chunks first; if an upload fails nothing is sent.',
+    description: 'Send an email immediately. This cannot be undone. Attachments that do not fit the ~3 MB inline budget (up to 150 MB each) are uploaded in chunks first; if an upload fails nothing is sent.',
     schema: { ...composeShape, saveToSentItems: z.boolean().optional().describe('Default true') },
     mutating: true,
-    async handler(a, { graph }) {
-      const { message, large } = await buildMessage(a);
+    async handler(a, { graph, cfg }) {
+      const { message, large } = await buildMessage(a, cfg.attachDirs);
       if (!large.length) {
         await graph.post('/me/sendMail', { message, saveToSentItems: a.saveToSentItems ?? true });
         return { sent: true, to: a.to };
@@ -98,19 +122,27 @@ export const composeTools: ToolDef[] = [
       }
       // Large attachments need a draft: create it, upload the files, then send it.
       const draft = await graph.post<Message>('/me/messages', message);
-      try {
-        for (const file of large) {
-          try {
-            await uploadLarge(graph, draft.id, file);
-          } catch (err) {
-            throw new Error(`Could not upload attachment "${file.name}": ${errText(err)}`);
-          }
+      const draftPath = `/me/messages/${encodeURIComponent(draft.id)}`;
+      for (const file of large) {
+        try {
+          await uploadLarge(graph, draft.id, file);
+        } catch (err) {
+          // Leave nothing half-sent behind.
+          await graph.delete(draftPath).catch(() => undefined);
+          throw new Error(`Could not upload attachment "${file.name}": ${errText(err)}`);
         }
-        await graph.post(`/me/messages/${encodeURIComponent(draft.id)}/send`);
+      }
+      try {
+        await graph.post(`${draftPath}/send`);
       } catch (err) {
-        // Leave nothing half-sent behind.
-        await graph.delete(`/me/messages/${encodeURIComponent(draft.id)}`).catch(() => undefined);
-        throw err;
+        const status = (err as { status?: number }).status;
+        if (status !== undefined && status < 500) {
+          await graph.delete(draftPath).catch(() => undefined);
+          throw err;
+        }
+        // A gateway error or a dropped connection may hide a send that went through, so the
+        // draft is kept: if it is still in Drafts, it was not sent.
+        throw new Error(`The send request failed (${errText(err)}). The message may have been sent: check Sent Items before retrying; if it was not sent, it is still in Drafts.`);
       }
       return { sent: true, to: a.to };
     },
@@ -120,8 +152,8 @@ export const composeTools: ToolDef[] = [
     description: 'Create a draft message in the Drafts folder (not sent). Attachments of 3 MB or more (up to 150 MB) are uploaded in chunks.',
     schema: composeShape,
     mutating: true,
-    async handler(a, { graph }) {
-      const { message, large } = await buildMessage(a);
+    async handler(a, { graph, cfg }) {
+      const { message, large } = await buildMessage(a, cfg.attachDirs);
       const m = await graph.post<Message>('/me/messages', message);
       const failed: { name: string; error: string }[] = [];
       for (const file of large) {
