@@ -89,8 +89,8 @@ The `.env` file is optional. Variables are read from `.env` in the package direc
 | `OUTLOOK_TOKEN_STORE` | `auto` | Where the token cache lives: `auto` (OS keychain when available, else file), `keychain` (fails if no keychain) or `file`. See [Token storage](#️-token-storage). |
 | `OUTLOOK_TOKEN_CACHE` | `~/.config/outlook-mcp/token-cache.json` | Token cache file (mode `0600`) for the `file` store; also identifies the keychain entry. |
 | `OUTLOOK_READ_ONLY` | `false` | When `true`, send/move/delete/flag/mark tools are not registered, the Graph client refuses every non-GET request and the default scopes are read-only. See [Read-only mode](#️-read-only-mode). |
-| `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` | The only directory attachments may be written to. |
-| `OUTLOOK_ATTACH_DIRS` | download dir, `~/Documents`, `~/Desktop` | Directories (separated by `:`, or `;` on Windows) that `send_mail` and `create_draft` may attach files from. Hidden files and folders are always refused. |
+| `OUTLOOK_DOWNLOAD_DIR` | `~/Downloads` (on Linux, `XDG_DOWNLOAD_DIR`) | The only directory attachments may be written to. |
+| `OUTLOOK_ATTACH_DIRS` | download dir, `~/Documents`, `~/Desktop` (on Linux the XDG user dirs, e.g. `~/Documentos`; on Windows also the OneDrive copies) | Directories (separated by `:`, or `;` on Windows) that `send_mail` and `create_draft` may attach files from. Hidden files and folders are always refused. |
 | `OUTLOOK_DEFAULT_TOP` | `20` | Default page size for list/search tools (1-100). |
 | `OUTLOOK_MAX_BODY_CHARS` | `20000` | Maximum body characters returned by `get_message`. |
 | `OUTLOOK_GRAPH_BASE_URL` | `https://graph.microsoft.com/v1.0` | Graph endpoint. Must be https on a Microsoft Graph host (`graph.microsoft.com`, `graph.microsoft.us`, `dod-graph.microsoft.us`, `microsoftgraph.chinacloudapi.cn`). |
@@ -188,7 +188,7 @@ By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works 
 | `bulk_action` | yes | Apply `delete`, `move`, `archive`, `markRead`, `markUnread`, `flag` or `unflag` to every message matching a `query` (KQL) or filters (`folderId`, `from`, `since`, `until`, `unreadOnly`, `hasAttachments`). Two steps: a dry run (the default) returns the count, a sample and a `selectionId`; `{ selectionId, dryRun: false }` applies the action to exactly those messages. `max` defaults to 100 (hard cap 500). |
 | `get_unsubscribe_info` | no | Show how to leave the mailing list a message came from (List-Unsubscribe). |
 | `unsubscribe` | yes | Leave a mailing list: RFC 8058 one-click, else a mailto request, else returns the link. Accepts `id` or `ids` (up to 50). |
-| `find_newsletters` | no | Scan a folder (`folderId`, `maxMessages` up to 2000, `excludeDomains`, `includeNoUnsubscribe`), group by sender and report mailing lists with their unsubscribe method, most frequent first. |
+| `find_newsletters` | no | Scan a folder (`folderId`, `maxMessages` up to 2000, `excludeDomains`, `includeNoUnsubscribe`), group by sender and report mailing lists with their unsubscribe method, most frequent first. Headers are read through JSON batching (20 senders per request). |
 | `mail_digest` | no | What is waiting in a folder (`folderId`, `since` default 24h, `unreadOnly` default true, `maxMessages` up to 1000, `groupBy` sender/none): counts, high-importance and flagged messages, and senders grouped with a newsletter hint. |
 | `list_rules` | no | List inbox rules. |
 | `create_rule` | yes | Create an inbox rule from `fromAddresses` / `senderContains` / `subjectContains` with action `move`, `delete`, `markRead` or `junk`. |

@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `OUTLOOK_ENV_FILE`: path of a `.env` file to load.
 - MCP tool annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`).
 - `list_folders` accepts `nextLink`.
+- Default download and attachment directories follow the platform: XDG user dirs on Linux (localized names such as `~/Descargas`) and OneDrive-redirected Documents and Desktop on Windows.
 - Architecture decision records in `docs/adr`.
 
 ### Changed
@@ -32,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inline attachments share a single ~3 MB budget; files that do not fit go through upload sessions, so several medium files no longer exceed Graph's request size limit.
 - A date without a time in `until` includes that whole day.
 - `move_message` accepts folder aliases such as `trash` and `spam`.
+- `find_newsletters` and `mail_digest` read List-Unsubscribe headers through JSON batching (`$batch`, 20 per request) instead of one request per sender; failed sub-requests are retried individually. In read-only mode a `$batch` made only of GET requests is the one POST the client allows.
 
 ### Fixed
 
