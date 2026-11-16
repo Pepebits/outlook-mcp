@@ -1,7 +1,10 @@
 import type { PublicClientApplication } from '@azure/msal-node';
 import type { Config } from '../config.js';
 import { log } from '../log.js';
-import { clearTokenStore, createPca, getAccessToken, getFirstAccount } from './msal.js';
+import { clearTokenStore, createPca, getAccessTokenResult, getFirstAccount, keepOnlyAccount, type AccessToken } from './msal.js';
+
+/** Refresh this long before expiry, so a token never expires mid-request. */
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 export interface PendingLogin {
   verificationUri: string;
@@ -25,12 +28,45 @@ export class AuthSession {
   private pending?: PendingLogin;
   private lastError?: string;
   private abort?: AbortController;
+  private cached?: AccessToken;
+  private inflight?: Promise<AccessToken>;
 
-  constructor(private cfg: Config) {
+  constructor(
+    private cfg: Config,
+    private readonly now: () => number = Date.now,
+    private readonly fetchToken: (pca: PublicClientApplication) => Promise<AccessToken> = (pca) =>
+      getAccessTokenResult(pca, cfg, { interactive: false }),
+  ) {
     this.pca = createPca(cfg);
   }
 
-  getToken = (): Promise<string> => getAccessToken(this.pca, this.cfg, { interactive: false });
+  /**
+   * Returns a cached access token until shortly before it expires. Concurrent callers share one
+   * refresh, so a bulk run does not hit MSAL (and the keychain) once per request.
+   */
+  getToken = async (): Promise<string> => {
+    const c = this.cached;
+    if (c && c.expiresAt !== undefined && c.expiresAt - REFRESH_MARGIN_MS > this.now()) return c.token;
+    if (!this.inflight) {
+      const p = this.fetchToken(this.pca);
+      this.inflight = p;
+      p.then(
+        (t) => {
+          if (this.inflight === p) this.cached = t;
+        },
+        () => undefined,
+      ).finally(() => {
+        if (this.inflight === p) this.inflight = undefined;
+      });
+    }
+    return (await this.inflight).token;
+  };
+
+  /** Forget the in-memory token (after sign-in or sign-out). */
+  private resetToken() {
+    this.cached = undefined;
+    this.inflight = undefined;
+  }
 
   async status(): Promise<LoginState> {
     if (this.pending) return { state: 'pending', login: this.pending };
@@ -77,7 +113,10 @@ export class AuthSession {
       });
       this.pca
         .acquireTokenByDeviceCode(request)
-        .then((res) => {
+        .then(async (res) => {
+          // A forced sign-in may use another account: drop the old ones so the new one is used.
+          if (res?.account) await keepOnlyAccount(this.pca, res.account);
+          this.resetToken();
           log.info(`signed in as ${res?.account?.username ?? 'unknown'}`);
         })
         .catch((err: Error) => {
@@ -99,6 +138,7 @@ export class AuthSession {
     this.abort?.abort();
     this.pending = undefined;
     this.abort = undefined;
+    this.resetToken();
     const cache = this.pca.getTokenCache();
     const accounts = await cache.getAllAccounts();
     for (const account of accounts) await cache.removeAccount(account);

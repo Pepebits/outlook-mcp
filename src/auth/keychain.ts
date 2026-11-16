@@ -166,8 +166,14 @@ export class MacKeychainBackend implements SecretBackend {
       previous = undefined; // unreadable manifest: it is about to be replaced anyway
     }
     const next: Manifest = { gen: randomBytes(6).toString('hex'), n: chunks.length, ts: Date.now() };
-    for (let i = 0; i < chunks.length; i++) await this.add(this.chunkAccount(next, i), chunks[i] || '=');
-    await this.add(this.account, `chunks:${next.gen}:${next.n}:${next.ts}`);
+    try {
+      for (let i = 0; i < chunks.length; i++) await this.add(this.chunkAccount(next, i), chunks[i] || '=');
+      await this.add(this.account, `chunks:${next.gen}:${next.n}:${next.ts}`);
+    } catch (err) {
+      // The manifest still points at the previous generation: do not leave half a token cache behind.
+      await this.removeChunks(next).catch(() => undefined);
+      throw err;
+    }
     if ((await this.get()) !== value) throw new Error('Could not write the token cache to the macOS Keychain.');
     if (previous) {
       try {
