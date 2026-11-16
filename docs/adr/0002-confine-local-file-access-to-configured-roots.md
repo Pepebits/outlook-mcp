@@ -33,4 +33,4 @@ Both directions go through one path policy module:
 - Breaking change for users who attach files from other locations: they must set `OUTLOOK_ATTACH_DIRS`. Ships in a minor release with a CHANGELOG entry and an error message that names the variable.
 - The exfiltration path from "prompt-injected model" to "arbitrary local file" is closed by default; what remains is limited to documents the user already keeps in ordinary document folders.
 - One module owns path policy, so `resolveSafePath` gains realpath checks and its tests cover symlinks for both directions.
-- The default roots are a judgement call and will need revisiting for Windows and Linux layouts (XDG user dirs).
+- The default roots follow the platform: XDG user dirs on Linux (localized folder names) and, on Windows, the OneDrive-redirected Documents and Desktop in addition to the local ones.

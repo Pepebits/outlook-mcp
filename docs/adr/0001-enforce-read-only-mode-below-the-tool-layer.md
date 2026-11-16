@@ -17,7 +17,7 @@ The guarantee therefore rests on every future tool author setting one boolean co
 Read-only mode is enforced at three layers:
 
 1. **Tool registration** (unchanged): mutating tools are not registered.
-2. **Graph client**: `GraphClient` takes a `readOnly` option and rejects every non-GET request before it is sent. No allowlist of "safe POSTs" exists today; one is added only if a read tool ever needs it.
+2. **Graph client**: `GraphClient` takes a `readOnly` option and rejects every non-GET request before it is sent. The single exception is `GraphClient.batchGet`: a JSON `$batch` whose sub-requests are all GETs, used by `find_newsletters` and `mail_digest` to read headers. It is built by the client itself, so callers cannot smuggle other methods into it.
 3. **Scopes**: when `OUTLOOK_READ_ONLY=true` and `OUTLOOK_SCOPES` is not set explicitly, the default scope set becomes `User.Read Mail.Read MailboxSettings.Read offline_access`. An explicit `OUTLOOK_SCOPES` always wins.
 
 Non-Graph side effects of read-only tools stay allowed and documented: `download_attachment` writes to the download directory, `login`/`logout` change the local token store.
