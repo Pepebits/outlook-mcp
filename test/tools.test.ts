@@ -369,6 +369,19 @@ describe('mail_digest', () => {
   });
 });
 
+describe('folders and moves', () => {
+  it('list_folders follows nextLink and move_message maps folder aliases', async () => {
+    const { graph, calls } = fakeGraph(
+      (r) => (r.path.includes('$skip=100') ? { json: { value: [{ id: 'f2' }] } } : undefined),
+      on('POST', '/me/messages/m/move', { json: { id: 'm2' } }),
+    );
+    const out = await run('list_folders', { nextLink: 'https://graph.test/v1.0/me/mailFolders?$skip=100' }, makeCtx(graph));
+    expect(out.folders).toEqual([{ id: 'f2' }]);
+    await run('move_message', { id: 'm', destinationFolderId: 'Trash' }, makeCtx(graph));
+    expect(calls.at(-1)?.body).toEqual({ destinationId: 'deleteditems' });
+  });
+});
+
 describe('download_attachment', () => {
   it('returns the saved path under untrusted, since it contains the sender-chosen name', async () => {
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'outlook-mcp-dl-'));

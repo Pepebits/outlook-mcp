@@ -27,15 +27,27 @@ export class GraphError extends Error {
   }
 }
 
+/** A 404 means different things depending on what was requested. */
+function notFoundMessage(requestPath: string): string {
+  const p = requestPath.split('?')[0];
+  if (/\/attachments\//i.test(p)) return 'Attachment not found. List the attachments of the message again to get fresh ids.';
+  if (/messageRules/i.test(p)) return 'Inbox rule not found. Call list_rules to get current rule ids.';
+  if (/mailFolders/i.test(p) && !/\/messages\//i.test(p)) return 'Folder not found. Call list_folders to get folder ids, or use a well-known name such as inbox or archive.';
+  return 'Message not found (id may have changed after move). List the folder again to get fresh ids.';
+}
+
 /** Convert any thrown value into a user-friendly message. */
 export function mapGraphError(err: unknown): Error {
   if (err instanceof AuthRequiredError) return err;
   if (!(err instanceof GraphError)) return err instanceof Error ? err : new Error(String(err));
 
   if (err.status === 401 || err.code === 'InvalidAuthenticationToken') return new AuthRequiredError();
-  if (err.code === 'ErrorItemNotFound' || err.status === 404) {
-    return new Error('Message not found (id may have changed after move). List the folder again to get fresh ids.');
+  if (err.code === 'ErrorSendAsDenied' || (err.status === 403 && /send ?as|from address/i.test(err.message))) {
+    return new Error(
+      `The mailbox is not allowed to send as that From address. Use the signed-in address, one of its aliases, or an identity with SendAs permission. ${err.message}`,
+    );
   }
+  if (err.code === 'ErrorItemNotFound' || err.status === 404) return new Error(notFoundMessage(err.requestPath));
   if ((err.status === 403 || err.code === 'ErrorAccessDenied') && /messageRules/i.test(err.requestPath)) {
     return new Error(
       'Access denied for inbox rules. Add the delegated Microsoft Graph permission MailboxSettings.ReadWrite to your app registration in Azure, include it in OUTLOOK_SCOPES, then re-run `npm run auth`.',
