@@ -104,6 +104,7 @@ export const unsubscribeTools: ToolDef[] = [
       'Unsubscribe from the mailing list a message came from, using its List-Unsubscribe header. Prefers RFC 8058 one-click (an HTTPS POST), then sends the mailto request from your account. If only a web link exists, returns it for the user to open. Accepts id or ids (up to 50). Never use this on spam or phishing: unsubscribing confirms the address is active.',
     schema: { ...idOrIds },
     mutating: true,
+    openWorld: true,
     async handler(a, { graph }) {
       return runBulk(a, async (id) => {
         const { untrusted, info } = await loadInfo(graph, id);
