@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { AuthRequiredError } from '../src/auth/msal.js';
 import { GraphClient } from '../src/graph/client.js';
-import { mapGraphError } from '../src/graph/errors.js';
+import { GraphError, mapGraphError } from '../src/graph/errors.js';
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers });
@@ -76,5 +76,19 @@ describe('GraphClient', () => {
       await expect(call()).rejects.toThrow(/Read-only mode/);
     }
     expect(f).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('mapGraphError', () => {
+  const e = (status: number, code: string, p: string, message = code) => mapGraphError(new GraphError(message, status, code, p)).message;
+  it('words 404s after what was requested', () => {
+    expect(e(404, 'ErrorItemNotFound', '/me/messages/1')).toMatch(/^Message not found/);
+    expect(e(404, 'ErrorItemNotFound', '/me/messages/1/attachments/2')).toMatch(/^Attachment not found/);
+    expect(e(404, 'ErrorItemNotFound', '/me/mailFolders/inbox/messageRules/9')).toMatch(/^Inbox rule not found/);
+    expect(e(404, 'ErrorItemNotFound', '/me/mailFolders/xyz/childFolders')).toMatch(/^Folder not found/);
+    expect(e(404, 'ErrorItemNotFound', '/me/mailFolders/inbox/messages/1')).toMatch(/^Message not found/);
+  });
+  it('explains a rejected From address', () => {
+    expect(e(403, 'ErrorSendAsDenied', '/me/sendMail', 'denied')).toMatch(/not allowed to send as that From address/);
   });
 });

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Message } from '../graph/types.js';
+import { wellKnownFolder } from '../util/odata.js';
 import { idOrIds, runBulk } from './bulk.js';
 import type { ToolDef } from './index.js';
 
@@ -9,13 +10,13 @@ export const manageTools: ToolDef[] = [
   {
     name: 'move_message',
     description:
-      'Move a message to another folder. Returns the NEW message id (ids change after a move). Accepts id or ids (up to 50). destinationFolderId may be an id or a well-known name such as archive, deleteditems, junkemail.',
+      'Move a message to another folder. Returns the NEW message id (ids change after a move). Accepts id or ids (up to 50). destinationFolderId may be an id or a well-known name such as archive, deleteditems, junkemail (aliases like trash or spam work too).',
     schema: { ...idOrIds, destinationFolderId: z.string().min(1) },
     mutating: true,
     destructive: false,
     async handler(a, { graph }) {
       return runBulk(a, async (id) => {
-        const m = await graph.post<Message>(`${msg(id)}/move`, { destinationId: a.destinationFolderId });
+        const m = await graph.post<Message>(`${msg(id)}/move`, { destinationId: wellKnownFolder(a.destinationFolderId) });
         return { newId: m.id };
       });
     },
