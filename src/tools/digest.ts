@@ -4,7 +4,7 @@ import { buildDigest, type DigestMessage } from '../util/digest.js';
 import { buildFilter, isoDate, wellKnownFolder } from '../util/odata.js';
 import { UNTRUSTED_NOTE, untrustedFields } from '../util/untrusted.js';
 import type { ToolDef } from './index.js';
-import { LOOKUP_CONCURRENCY, lookupUnsubscribeKind, mapLimit } from './newsletters.js';
+import { lookupUnsubscribeKinds } from './newsletters.js';
 
 const DEFAULT_MAX = 200;
 const MAX_MESSAGES = 1000;
@@ -57,13 +57,7 @@ export const digestTools: ToolDef[] = [
       let groups;
       if (digest.groups) {
         const top = digest.groups.slice(0, NEWSLETTER_LOOKUPS);
-        const kinds = await mapLimit(top, LOOKUP_CONCURRENCY, async (g) => {
-          try {
-            return await lookupUnsubscribeKind(graph, g.sampleIds[0]);
-          } catch {
-            return undefined;
-          }
-        });
+        const kinds = await lookupUnsubscribeKinds(graph, top.map((g) => g.sampleIds[0]));
         groups = digest.groups.map((g, i) => ({
           count: g.count,
           unread: g.unread,
