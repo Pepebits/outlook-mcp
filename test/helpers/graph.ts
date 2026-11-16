@@ -35,6 +35,20 @@ export function fakeGraph(...routes: Route[]) {
       headers: init.headers ?? {},
     };
     calls.push(req);
+    // JSON batching: answer each GET sub-request through the same routes.
+    if (req.method === 'POST' && req.path === '/$batch') {
+      const responses = (req.body.requests as { id: string; method: string; url: string }[]).map((sub) => {
+        const subUrl = new URL(BASE + sub.url);
+        const subReq: FakeRequest = { method: sub.method, path: sub.url, url: subUrl, body: undefined, headers: {} };
+        calls.push(subReq);
+        for (const r of routes) {
+          const out = r(subReq);
+          if (out) return { id: sub.id, status: out.status ?? 200, body: out.json };
+        }
+        return { id: sub.id, status: 500, body: { error: { code: 'NoRoute', message: `no route for ${sub.method} ${sub.url}` } } };
+      });
+      return new Response(JSON.stringify({ responses }), { status: 200 });
+    }
     for (const r of routes) {
       const out = r(req);
       if (out) {

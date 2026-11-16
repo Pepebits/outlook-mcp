@@ -23,7 +23,12 @@ describe('read-only mode', () => {
     const fetchFn = vi.fn(async (_url: any, init: any) => {
       // A generic body that satisfies list and single-item shapes well enough to keep handlers going.
       const body = { id: 'x', name: 'x.txt', value: [{ id: 'x', subject: 's', from: { emailAddress: { address: 'a@x.com' } }, internetMessageHeaders: [] }] };
-      return init.method === 'GET' ? new Response(JSON.stringify(body), { status: 200 }) : new Response(null, { status: 500 });
+      if (init.method === 'GET') return new Response(JSON.stringify(body), { status: 200 });
+      if (init.method === 'POST' && String(_url).endsWith('/$batch')) {
+        const requests = JSON.parse(init.body).requests as { id: string }[];
+        return new Response(JSON.stringify({ responses: requests.map((r) => ({ id: r.id, status: 200, body })) }), { status: 200 });
+      }
+      return new Response(null, { status: 500 });
     });
     const graph = new GraphClient(async () => 't', 'https://graph.test/v1.0', { fetch: fetchFn as any, readOnly: true, maxRetries: 0 });
     const ctx = { graph, cfg: parseConfig({ OUTLOOK_READ_ONLY: 'true', OUTLOOK_DOWNLOAD_DIR: dir }), auth: fakeAuth() };
@@ -34,7 +39,12 @@ describe('read-only mode', () => {
         expect(err?.message ?? '', t.name).not.toMatch(/Read-only mode/);
       }
       expect(fetchFn.mock.calls.length).toBeGreaterThan(0);
-      expect(fetchFn.mock.calls.every(([, init]) => (init as RequestInit).method === 'GET')).toBe(true);
+      // Only GETs, or a $batch whose sub-requests are all GETs.
+      for (const [url, init] of fetchFn.mock.calls as [string, RequestInit][]) {
+        if (init.method === 'GET') continue;
+        expect(`${init.method} ${url}`).toMatch(/^POST .*\/\$batch$/);
+        expect(JSON.parse(String(init.body)).requests.every((r: { method: string }) => r.method === 'GET')).toBe(true);
+      }
     } finally {
       await fs.rm(dir, { recursive: true, force: true });
     }

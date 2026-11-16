@@ -79,6 +79,23 @@ describe('GraphClient', () => {
   });
 });
 
+describe('GraphClient.batchGet', () => {
+  it('sends 20 GETs per $batch, keeps order and works in read-only mode', async () => {
+    const f = vi.fn(async (_url: string, init: any) => {
+      const { requests } = JSON.parse(init.body);
+      return json(200, { responses: [...requests].reverse().map((r: any) => ({ id: r.id, status: r.url === '/bad' ? 404 : 200, body: { url: r.url } })) });
+    });
+    const c = new GraphClient(async () => 'tok', 'https://g.test/v1.0', { fetch: f as any, readOnly: true });
+    const paths = [...Array.from({ length: 24 }, (_, i) => `/me/messages/${i}`), '/bad'];
+    const out = await c.batchGet(paths);
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(f.mock.calls[0][0]).toBe('https://g.test/v1.0/$batch');
+    expect(JSON.parse((f.mock.calls[0][1] as any).body).requests).toHaveLength(20);
+    expect(out.map((r) => (r.body as any)?.url)).toEqual([...paths.slice(0, 24), '/bad']);
+    expect(out.at(-1)?.status).toBe(404);
+  });
+});
+
 describe('mapGraphError', () => {
   const e = (status: number, code: string, p: string, message = code) => mapGraphError(new GraphError(message, status, code, p)).message;
   it('words 404s after what was requested', () => {

@@ -25,6 +25,8 @@ const THROTTLED = 429;
 const RETRY_IF_IDEMPOTENT = new Set([500, 502, 503, 504]);
 const IDEMPOTENT = new Set(['GET', 'HEAD', 'PUT', 'DELETE', 'PATCH']);
 export const MAX_RETRY_AFTER_MS = 60_000;
+/** Graph accepts at most 20 requests per JSON batch. */
+export const BATCH_LIMIT = 20;
 
 export class GraphClient {
   private readonly sleep: (ms: number) => Promise<void>;
@@ -73,12 +75,35 @@ export class GraphClient {
   }
 
   async request<T = unknown>(method: string, pathOrUrl: string, opts: RequestOptions = {}): Promise<T> {
-    const m = method.toUpperCase();
-    if (this.readOnly && m !== 'GET') {
+    return this.send<T>(method.toUpperCase(), pathOrUrl, opts, false);
+  }
+
+  /**
+   * Runs GET requests (paths relative to the API version) through JSON batching, 20 per $batch call.
+   * A $batch of GETs only reads, so it is allowed in read-only mode and retried like a GET. Returns one
+   * entry per path, in order; failed sub-requests come back with their status for the caller to handle.
+   */
+  async batchGet<T = unknown>(paths: string[]): Promise<{ status: number; body?: T }[]> {
+    const out: { status: number; body?: T }[] = [];
+    for (let start = 0; start < paths.length; start += BATCH_LIMIT) {
+      const chunk = paths.slice(start, start + BATCH_LIMIT);
+      const requests = chunk.map((url, i) => ({ id: String(i), method: 'GET', url: url.startsWith('/') ? url : `/${url}` }));
+      const res = await this.send<{ responses?: { id: string; status: number; body?: T }[] }>('POST', '/$batch', { body: { requests } }, true);
+      const byId = new Map((res?.responses ?? []).map((r) => [r.id, r]));
+      for (let i = 0; i < chunk.length; i++) {
+        const r = byId.get(String(i));
+        out.push(r ? { status: r.status, body: r.body } : { status: 0 });
+      }
+    }
+    return out;
+  }
+
+  private async send<T>(m: string, pathOrUrl: string, opts: RequestOptions, readsOnly: boolean): Promise<T> {
+    if (this.readOnly && m !== 'GET' && !readsOnly) {
       throw new Error(`Read-only mode: refusing ${m} ${pathOrUrl.split('?')[0]}.`);
     }
     const url = this.buildUrl(pathOrUrl, opts.query);
-    const idempotent = IDEMPOTENT.has(m);
+    const idempotent = readsOnly || IDEMPOTENT.has(m);
     for (let attempt = 0; ; attempt++) {
       const headers: Record<string, string> = {
         Authorization: `Bearer ${await this.getToken()}`,

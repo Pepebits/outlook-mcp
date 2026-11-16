@@ -369,6 +369,25 @@ describe('mail_digest', () => {
   });
 });
 
+describe('unsubscribe header lookups', () => {
+  it('find_newsletters reads headers through $batch and retries failed sub-requests one by one', async () => {
+    const list = on('GET', '/me/mailFolders/inbox/messages', {
+      json: { value: [msg('a', { from: { emailAddress: { address: 'news@a.com' } } }), msg('b', { from: { emailAddress: { address: 'news@b.com' } } })] },
+    });
+    let bTries = 0;
+    const { graph, calls } = fakeGraph(
+      list,
+      on('GET', '/me/messages/a', { json: { internetMessageHeaders: [{ name: 'List-Unsubscribe', value: '<https://a.com/u>' }] } }),
+      on('GET', '/me/messages/b', () => (++bTries === 1 ? graphError(429, 'TooManyRequests') : { json: { internetMessageHeaders: [{ name: 'List-Unsubscribe', value: '<mailto:u@b.com>' }] } })),
+    );
+    const out = await run('find_newsletters', {}, makeCtx(graph));
+    expect(out.senders.map((s: any) => [s.untrusted.address, s.unsubscribe]).sort()).toEqual([['news@a.com', 'link'], ['news@b.com', 'mailto']]);
+    expect(calls.filter((c) => c.method === 'POST' && c.path === '/$batch')).toHaveLength(1);
+    expect(bTries).toBe(2);
+    expect(out.lookupErrors).toBeUndefined();
+  });
+});
+
 describe('folders and moves', () => {
   it('list_folders follows nextLink and move_message maps folder aliases', async () => {
     const { graph, calls } = fakeGraph(

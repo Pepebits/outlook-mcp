@@ -10,13 +10,30 @@ import type { ToolDef } from './index.js';
 const DEFAULT_MAX = 500;
 export const LOOKUP_CONCURRENCY = 4;
 
-/** Reads a message's List-Unsubscribe headers and classifies how it can be unsubscribed. */
-export async function lookupUnsubscribeKind(graph: GraphClient, messageId: string): Promise<UnsubscribeKind> {
-  const m = await graph.get<{ internetMessageHeaders?: { name: string; value: string }[] }>(
-    `/me/messages/${encodeURIComponent(messageId)}`,
-    { query: { $select: 'internetMessageHeaders' } },
-  );
-  return unsubscribeKind(parseUnsubscribeHeaders(m.internetMessageHeaders ?? []));
+type HeaderMessage = { internetMessageHeaders?: { name: string; value: string }[] };
+const headersPath = (id: string) => `/me/messages/${encodeURIComponent(id)}?$select=internetMessageHeaders`;
+const kindOf = (m: HeaderMessage | undefined) => unsubscribeKind(parseUnsubscribeHeaders(m?.internetMessageHeaders ?? []));
+
+/**
+ * Reads the List-Unsubscribe headers of many messages through $batch (20 per request) and classifies
+ * each. Sub-requests that fail (throttled, missing) are retried one by one; `undefined` marks a lookup
+ * that still failed.
+ */
+export async function lookupUnsubscribeKinds(graph: GraphClient, messageIds: string[]): Promise<(UnsubscribeKind | undefined)[]> {
+  let batched: { status: number; body?: HeaderMessage }[];
+  try {
+    batched = await graph.batchGet<HeaderMessage>(messageIds.map(headersPath));
+  } catch {
+    batched = messageIds.map(() => ({ status: 0 }));
+  }
+  return mapLimit(messageIds.map((id, i) => ({ id, r: batched[i] })), LOOKUP_CONCURRENCY, async ({ id, r }) => {
+    if (r.status >= 200 && r.status < 300) return kindOf(r.body);
+    try {
+      return kindOf(await graph.get<HeaderMessage>(headersPath(id)));
+    } catch {
+      return undefined;
+    }
+  });
 }
 
 export async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -64,15 +81,9 @@ export const newsletterTools: ToolDef[] = [
       const scanned = messages.slice(0, max);
       const groups = groupBySender(scanned, { excludeDomains: a.excludeDomains });
 
-      let lookupErrors = 0;
-      const kinds = await mapLimit(groups, LOOKUP_CONCURRENCY, async (g): Promise<UnsubscribeKind> => {
-        try {
-          return await lookupUnsubscribeKind(graph, g.sampleMessageId);
-        } catch {
-          lookupErrors++;
-          return 'none';
-        }
-      });
+      const looked = await lookupUnsubscribeKinds(graph, groups.map((g) => g.sampleMessageId));
+      const lookupErrors = looked.filter((k) => k === undefined).length;
+      const kinds: UnsubscribeKind[] = looked.map((k) => k ?? 'none');
 
       const senders = groups
         .map((g: SenderGroup, i) => ({
