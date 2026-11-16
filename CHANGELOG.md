@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-16
+
 ### Security
 
 - The access token is only sent to the configured Microsoft Graph origin and API version: a `nextLink` pointing to another host, scheme or path is refused.
