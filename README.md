@@ -177,7 +177,7 @@ By default `outlook-mcp` uses the shared **outlook-mcp** Azure app, which works 
 | `get_message` | no | Full message with recipients, flags and body (`format` text, or html for the raw HTML; `maxChars`). |
 | `list_attachments` | no | Attachment metadata for a message. |
 | `download_attachment` | no | Save an attachment into `OUTLOOK_DOWNLOAD_DIR` (writes locally only; no overwrite unless `overwrite: true`). |
-| `send_mail` | yes | Send an email, optionally `from` an alias or SendAs identity (with `fromName`) and with local attachments from `OUTLOOK_ATTACH_DIRS` up to 150 MB each (files beyond a shared ~3 MB inline budget go through an upload session; if an upload fails nothing is sent). |
+| `send_mail` | yes | Send an email, optionally `from` an alias or SendAs identity (with `fromName`; Outlook.com may show the account name instead when `from` is the primary address) and with local attachments from `OUTLOOK_ATTACH_DIRS` up to 150 MB each (files beyond a shared ~3 MB inline budget go through an upload session; if an upload fails nothing is sent). |
 | `create_draft` | yes | Create a draft without sending. Same `from`, `fromName` and attachment rules as `send_mail`; failed uploads are reported and the draft is kept. |
 | `reply_message` | yes | Reply or reply-all (`replyAll`). |
 | `forward_message` | yes | Forward to new recipients. |

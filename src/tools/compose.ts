@@ -72,7 +72,7 @@ const composeShape = {
   body: z.string(),
   bodyType: z.enum(['text', 'html']).optional().describe('Default text'),
   from: z.string().email().optional().describe('From address: must be the signed-in mailbox or one of its aliases / SendAs identities'),
-  fromName: z.string().max(100).optional().describe('Display name shown with the From address (e.g. Fox); requires from'),
+  fromName: z.string().max(100).optional().describe('Display name shown with the From address (e.g. Fox); requires from. Outlook.com may replace it with the account name when from is the primary address'),
   attachments: z
     .array(z.object({ path: z.string() }))
     .optional()
