@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { z } from 'zod';
 import type { Attachment, Page } from '../graph/types.js';
-import { resolveSafePath, safeFileName } from '../util/paths.js';
+import { assertRealInside, resolveSafeWritePath, safeFileName } from '../util/paths.js';
 import { UNTRUSTED_NOTE, neutralizeMarkers, untrustedFields } from '../util/untrusted.js';
 import type { ToolDef } from './index.js';
 
@@ -47,10 +47,12 @@ export const attachmentTools: ToolDef[] = [
         const meta = await graph.get<Attachment>(base, { query: { $select: 'id,name' } });
         target = safeFileName(meta.name);
       }
-      const dest = resolveSafePath(cfg.downloadDir, target);
+      const dest = await resolveSafeWritePath(cfg.downloadDir, target);
       const res = await graph.getStream(`${base}/$value`);
       const data = Buffer.from(await res.arrayBuffer());
       await fs.mkdir(path.dirname(dest), { recursive: true });
+      // Re-check after mkdir: the directories now exist, so their real paths are known.
+      await assertRealInside(cfg.downloadDir, dest);
       try {
         await fs.writeFile(dest, data, { flag: a.overwrite ? 'w' : 'wx' });
       } catch (err) {
