@@ -37,7 +37,12 @@ export function isoDate(value: string, label: string): string {
   return d.toISOString();
 }
 
-/** Build an OData $filter expression, or undefined when no criteria are given. */
+/** An inclusive upper bound: a date without a time ("2025-01-31") covers that whole day (UTC). */
+export function untilDate(value: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return isoDate(`${value.trim()}T23:59:59.999Z`, 'until');
+  return isoDate(value, 'until');
+}
+
 /**
  * Builds $filter for a listing sorted by receivedDateTime desc. Exchange rejects
  * such a sort (InefficientFilter) unless receivedDateTime is filtered first, so a
@@ -50,7 +55,7 @@ export function buildFilter(f: FilterInput): string | undefined {
   if (f.hasAttachments !== undefined) parts.push(`hasAttachments eq ${f.hasAttachments}`);
   const dates: string[] = [];
   if (f.since) dates.push(`receivedDateTime ge ${isoDate(f.since, 'since')}`);
-  if (f.until) dates.push(`receivedDateTime le ${isoDate(f.until, 'until')}`);
+  if (f.until) dates.push(`receivedDateTime le ${untilDate(f.until)}`);
   if (!parts.length) return dates.length ? dates.join(' and ') : undefined;
   if (!f.since) dates.unshift('receivedDateTime ge 1900-01-01T00:00:00Z');
   return [...dates, ...parts].join(' and ');

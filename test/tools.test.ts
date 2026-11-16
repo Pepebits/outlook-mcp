@@ -395,7 +395,9 @@ describe('bulk_action', () => {
     const ids = Array.from({ length: 15 }, (_, i) => `m${i}`);
     const { graph, calls } = fakeGraph(inbox(ids));
     const out = await run('bulk_action', { from: 'ann@x.com', action: 'delete' }, makeCtx(graph));
-    expect(out).toMatchObject({ dryRun: true, matched: 15, truncated: false, next: 'Call again with dryRun: false to apply.' });
+    expect(out).toMatchObject({ dryRun: true, action: 'delete', matched: 15, truncated: false });
+    expect(out.selectionId).toEqual(expect.any(String));
+    expect(out.next).toContain(out.selectionId);
     expect(out.sample).toHaveLength(10);
     expect(out.sample[0].untrusted.subject).toBe('subject m0');
     expect(out.sample[0]).not.toHaveProperty('subject');
@@ -409,8 +411,10 @@ describe('bulk_action', () => {
       on('POST', '/me/messages/b/move', graphError(404, 'ErrorItemNotFound')),
       on('POST', '/me/messages/c/move', { json: { id: 'c2' } }),
     );
-    const out = await run('bulk_action', { unreadOnly: true, action: 'delete', dryRun: false }, makeCtx(graph));
-    expect(out).toMatchObject({ dryRun: false, applied: 3, succeeded: 2, failed: 1 });
+    const ctx = makeCtx(graph);
+    const preview = await run('bulk_action', { unreadOnly: true, action: 'delete' }, ctx);
+    const out = await run('bulk_action', { selectionId: preview.selectionId, dryRun: false }, ctx);
+    expect(out).toMatchObject({ dryRun: false, action: 'delete', applied: 3, succeeded: 2, failed: 1 });
     expect(out.results.map((r: any) => [r.id, r.ok])).toEqual([['a', true], ['b', false], ['c', true]]);
     expect(out.results[0]).toEqual({ id: 'a', ok: true, newId: 'a2' });
     expect(out.results[2]).toEqual({ id: 'c', ok: true, newId: 'c2' });
@@ -425,10 +429,14 @@ describe('bulk_action', () => {
       on('PATCH', '/me/messages/a', { json: {} }),
     );
     const ctx = makeCtx(graph);
-    await run('bulk_action', { folderId: 'inbox', action: 'archive', dryRun: false }, ctx);
-    await run('bulk_action', { folderId: 'inbox', action: 'move', destinationFolderId: 'Junk', dryRun: false }, ctx);
-    await run('bulk_action', { folderId: 'inbox', action: 'flag', dryRun: false }, ctx);
-    await run('bulk_action', { folderId: 'inbox', action: 'markUnread', dryRun: false }, ctx);
+    const apply = async (args: Record<string, unknown>) => {
+      const { selectionId } = await run('bulk_action', { folderId: 'inbox', ...args }, ctx);
+      await run('bulk_action', { selectionId, dryRun: false }, ctx);
+    };
+    await apply({ action: 'archive' });
+    await apply({ action: 'move', destinationFolderId: 'Junk' });
+    await apply({ action: 'flag' });
+    await apply({ action: 'markUnread' });
     expect(mutations(calls).map((c) => c.body)).toEqual([
       { destinationId: 'archive' },
       { destinationId: 'junkemail' },
@@ -457,6 +465,52 @@ describe('bulk_action', () => {
     );
     const out = await run('bulk_action', { from: 'ann@x.com', action: 'delete', max: 3 }, makeCtx(graph));
     expect(out).toMatchObject({ matched: 3, truncated: true });
+  });
+
+  it('refuses to apply without a selection from a dry run', async () => {
+    const { graph, calls } = fakeGraph(inbox(['a']));
+    await expect(run('bulk_action', { from: 'ann@x.com', action: 'delete', dryRun: false }, makeCtx(graph))).rejects.toThrow(/selectionId/);
+    await expect(run('bulk_action', { selectionId: 'made-up', dryRun: false }, makeCtx(graph))).rejects.toThrow(/Unknown or expired/);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('applies exactly the previewed ids, once, and rejects selection changes on apply', async () => {
+    let ids = ['a', 'b'];
+    const { graph, calls } = fakeGraph(
+      (r) => (r.method === 'GET' ? { json: { value: ids.map((i) => msg(i)) } } : undefined),
+      (r) => (r.method === 'PATCH' ? { json: {} } : undefined),
+    );
+    const ctx = makeCtx(graph);
+    const preview = await run('bulk_action', { from: 'ann@x.com', action: 'markRead' }, ctx);
+    ids = ['new', 'a', 'b']; // mail that arrives after the preview is never touched
+    await expect(run('bulk_action', { selectionId: preview.selectionId, dryRun: false, from: 'x@x.com' }, ctx)).rejects.toThrow(/Remove: from/);
+    const preview2 = await run('bulk_action', { from: 'ann@x.com', action: 'markRead' }, ctx);
+    await expect(run('bulk_action', { selectionId: preview2.selectionId, dryRun: false, action: 'delete' }, ctx)).rejects.toThrow(/previewed for "markRead"/);
+    const preview3 = await run('bulk_action', { from: 'ann@x.com', action: 'markRead' }, ctx);
+    ids = ['newer', ...ids];
+    const out = await run('bulk_action', { selectionId: preview3.selectionId, dryRun: false, action: 'markRead' }, ctx);
+    expect(out.results.map((r: any) => r.id)).toEqual(['new', 'a', 'b']);
+    expect(mutations(calls).map((c) => c.path)).toEqual(['/me/messages/new', '/me/messages/a', '/me/messages/b']);
+    await expect(run('bulk_action', { selectionId: preview3.selectionId, dryRun: false }, ctx)).rejects.toThrow(/Unknown or expired/);
+  });
+
+  it('selections expire after 10 minutes', async () => {
+    vi.useFakeTimers();
+    try {
+      const { graph } = fakeGraph(inbox(['a']));
+      const ctx = makeCtx(graph);
+      const { selectionId } = await run('bulk_action', { from: 'ann@x.com', action: 'delete' }, ctx);
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+      await expect(run('bulk_action', { selectionId, dryRun: false }, ctx)).rejects.toThrow(/expired/);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('unreadOnly: false does not count as an explicit selection', async () => {
+    const { graph, calls } = fakeGraph(inbox(['a']));
+    await expect(run('bulk_action', { unreadOnly: false, action: 'delete' }, makeCtx(graph))).rejects.toThrow(/explicit/);
+    expect(calls).toHaveLength(0);
   });
 
   it('caps max at 500 and uses $search for query', async () => {
