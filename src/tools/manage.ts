@@ -12,6 +12,7 @@ export const manageTools: ToolDef[] = [
       'Move a message to another folder. Returns the NEW message id (ids change after a move). Accepts id or ids (up to 50). destinationFolderId may be an id or a well-known name such as archive, deleteditems, junkemail.',
     schema: { ...idOrIds, destinationFolderId: z.string().min(1) },
     mutating: true,
+    destructive: false,
     async handler(a, { graph }) {
       return runBulk(a, async (id) => {
         const m = await graph.post<Message>(`${msg(id)}/move`, { destinationId: a.destinationFolderId });
@@ -24,6 +25,7 @@ export const manageTools: ToolDef[] = [
     description: 'Mark a message as read or unread. Accepts id or ids (up to 50).',
     schema: { ...idOrIds, isRead: z.boolean() },
     mutating: true,
+    destructive: false,
     async handler(a, { graph }) {
       return runBulk(a, async (id) => {
         await graph.patch(msg(id), { isRead: a.isRead });
@@ -36,6 +38,7 @@ export const manageTools: ToolDef[] = [
     description: 'Set the follow-up flag status of a message. Accepts id or ids (up to 50).',
     schema: { ...idOrIds, status: z.enum(['flagged', 'complete', 'notFlagged']) },
     mutating: true,
+    destructive: false,
     async handler(a, { graph }) {
       return runBulk(a, async (id) => {
         await graph.patch(msg(id), { flag: { flagStatus: a.status } });

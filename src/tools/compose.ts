@@ -111,6 +111,7 @@ export const composeTools: ToolDef[] = [
     description: 'Send an email immediately. This cannot be undone. Attachments that do not fit the ~3 MB inline budget (up to 150 MB each) are uploaded in chunks first; if an upload fails nothing is sent.',
     schema: { ...composeShape, saveToSentItems: z.boolean().optional().describe('Default true') },
     mutating: true,
+    openWorld: true,
     async handler(a, { graph, cfg }) {
       const { message, large } = await buildMessage(a, cfg.attachDirs);
       if (!large.length) {
@@ -152,6 +153,7 @@ export const composeTools: ToolDef[] = [
     description: 'Create a draft message in the Drafts folder (not sent). Attachments of 3 MB or more (up to 150 MB) are uploaded in chunks.',
     schema: composeShape,
     mutating: true,
+    destructive: false,
     async handler(a, { graph, cfg }) {
       const { message, large } = await buildMessage(a, cfg.attachDirs);
       const m = await graph.post<Message>('/me/messages', message);
@@ -171,6 +173,7 @@ export const composeTools: ToolDef[] = [
     description: 'Reply (or reply-all) to a message. Sends immediately.',
     schema: { id: z.string().min(1), comment: z.string(), replyAll: z.boolean().optional() },
     mutating: true,
+    openWorld: true,
     async handler(a, { graph }) {
       const action = a.replyAll ? 'replyAll' : 'reply';
       await graph.post(`/me/messages/${encodeURIComponent(a.id)}/${action}`, { comment: a.comment });
@@ -186,6 +189,7 @@ export const composeTools: ToolDef[] = [
       comment: z.string().optional(),
     },
     mutating: true,
+    openWorld: true,
     async handler(a, { graph }) {
       await graph.post(`/me/messages/${encodeURIComponent(a.id)}/forward`, {
         comment: a.comment ?? '',

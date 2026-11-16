@@ -30,6 +30,10 @@ export interface ToolDef {
   schema: z.ZodRawShape;
   /** True when the tool changes mailbox state (send, move, delete, ...). */
   mutating: boolean;
+  /** Mutating tools are destructive unless marked false (reversible or additive changes). */
+  destructive?: false;
+  /** True when the tool reaches people or hosts outside the mailbox (sending mail, unsubscribe requests). */
+  openWorld?: true;
   handler: (args: any, ctx: ToolContext) => Promise<unknown>;
 }
 
@@ -54,12 +58,21 @@ export function withErrorHandling(def: ToolDef, ctx: ToolContext) {
   };
 }
 
+/** MCP tool annotations, so clients can tell read-only tools from destructive ones. */
+export function toolAnnotations(def: ToolDef) {
+  return {
+    readOnlyHint: !def.mutating,
+    ...(def.mutating ? { destructiveHint: def.destructive ?? true } : {}),
+    openWorldHint: def.openWorld ?? false,
+  };
+}
+
 export function registerAllTools(server: McpServer, ctx: ToolContext): string[] {
   const selected = selectTools(allTools(), ctx.cfg.readOnly);
   for (const def of selected) {
     server.registerTool(
       def.name,
-      { description: def.description, inputSchema: def.schema },
+      { description: def.description, inputSchema: def.schema, annotations: toolAnnotations(def) },
       withErrorHandling(def, ctx) as any,
     );
   }
