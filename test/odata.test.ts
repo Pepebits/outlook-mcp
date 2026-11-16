@@ -31,4 +31,8 @@ describe('odata', () => {
     expect(() => assertSearchCompatible({ $search: 'x', $filter: 'a' })).toThrow();
     expect(() => assertSearchCompatible({ $search: 'x' })).not.toThrow();
   });
+  it('treats a date-only until as the end of that day', () => {
+    expect(buildFilter({ until: '2025-01-31' })).toBe('receivedDateTime le 2025-01-31T23:59:59.999Z');
+    expect(buildFilter({ until: '2025-01-31T10:00:00Z' })).toBe('receivedDateTime le 2025-01-31T10:00:00.000Z');
+  });
 });
