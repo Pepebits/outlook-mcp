@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- The access token is only sent to the configured Microsoft Graph origin and API version: a `nextLink` pointing to another host, scheme or path is refused.
+- `OUTLOOK_GRAPH_BASE_URL` must be https on a Microsoft Graph host (global or national cloud).
+- One-click unsubscribe only POSTs to https URLs that resolve to public addresses, and checks each redirect before following it.
+- Unsubscribe links and mailto fields, `internetMessageId` and attachment content types are returned under the `untrusted` key.
+
+### Added
+
+- `send_mail` and `create_draft` accept `from` and `fromName` to send from an alias or SendAs identity (thanks @itsrealfortune, #7). `fromName` without `from` is rejected, and a refused From address gets a clear error.
+- `OUTLOOK_ATTACH_DIRS`: the directories attachments may be read from (default: the download directory, `~/Documents` and `~/Desktop`).
+- `OUTLOOK_ENV_FILE`: path of a `.env` file to load.
+- MCP tool annotations (`readOnlyHint`, `destructiveHint`, `openWorldHint`).
+- `list_folders` accepts `nextLink`.
+- Architecture decision records in `docs/adr`.
+
+### Changed
+
+- **Breaking:** `bulk_action` applies only a previewed selection: the dry run returns a `selectionId`, and `{ selectionId, dryRun: false }` acts on exactly those messages, once, within 10 minutes. `dryRun: false` without a `selectionId`, or with search or filter fields, is refused ([ADR 0003](docs/adr/0003-bind-bulk-action-apply-to-a-dry-run-selection.md)).
+- **Breaking:** attachments must be inside `OUTLOOK_ATTACH_DIRS` and must not be hidden files or inside hidden folders; paths are checked after resolving symlinks ([ADR 0002](docs/adr/0002-confine-local-file-access-to-configured-roots.md)).
+- **Breaking:** a `.env` in the current working directory is no longer read; use the package directory, `OUTLOOK_ENV_FILE` or your MCP client's env block.
+- Read-only mode is also enforced in the Graph client (non-GET requests are refused) and, unless `OUTLOOK_SCOPES` is set, signs in with read-only scopes ([ADR 0001](docs/adr/0001-enforce-read-only-mode-below-the-tool-layer.md)).
+- Inline attachments share a single ~3 MB budget; files that do not fit go through upload sessions, so several medium files no longer exceed Graph's request size limit.
+- A date without a time in `until` includes that whole day.
+- `move_message` accepts folder aliases such as `trash` and `spam`.
+
+### Fixed
+
+- `POST` requests are no longer retried after a 5xx or a network error, so mail cannot be sent twice; when the final send of a message with large attachments fails that way, the draft is kept and the error says the mail may have been sent.
+- Graph requests time out after 60 seconds, network errors on reads are retried, and `Retry-After` is capped at 60 seconds.
+- The access token is cached until shortly before it expires, with one shared refresh, instead of reading the keychain on every request.
+- Being offline no longer reports "Not signed in".
+- `login` with `force: true` and a different account now uses the new account.
+- `download_attachment` refuses symlinked directories that lead outside the download directory.
+- A failed keychain write no longer leaves partial token cache entries behind.
+- 404 errors name what was not found (message, attachment, rule or folder).
+- `get_message` describes `format: "html"` correctly (raw HTML, not sanitized).
+- The MCP server reports the package version instead of a hard-coded one.
+
 ## [1.2.0] - 2026-10-08
 
 ### Added
