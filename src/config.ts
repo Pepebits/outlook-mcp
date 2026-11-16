@@ -1,4 +1,5 @@
 import { config as loadDotenv } from 'dotenv';
+import { readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -70,7 +71,61 @@ export function expandHome(p: string): string {
   return p;
 }
 
-export function parseConfig(env: NodeJS.ProcessEnv): Config {
+type UserDir = 'DOWNLOAD' | 'DOCUMENTS' | 'DESKTOP';
+const FALLBACK_NAMES: Record<UserDir, string> = { DOWNLOAD: 'Downloads', DOCUMENTS: 'Documents', DESKTOP: 'Desktop' };
+
+/** Parses ~/.config/user-dirs.dirs (XDG user directories, localized on many Linux desktops). */
+export function parseXdgUserDirs(text: string, home: string): Partial<Record<UserDir, string>> {
+  const out: Partial<Record<UserDir, string>> = {};
+  for (const line of text.split('\n')) {
+    const m = /^\s*XDG_(DOWNLOAD|DOCUMENTS|DESKTOP)_DIR\s*=\s*"?([^"]*)"?\s*$/.exec(line);
+    if (!m) continue;
+    const value = m[2].replace(/^\$HOME(?=\/|$)/, home);
+    // XDG sets a directory to $HOME itself to disable it; never treat the home directory as a root.
+    if (path.isAbsolute(value) && path.resolve(value) !== path.resolve(home)) out[m[1] as UserDir] = value;
+  }
+  return out;
+}
+
+export interface Platform {
+  platform: NodeJS.Platform;
+  home: string;
+  readFile: (p: string) => string | undefined;
+}
+
+const realPlatform = (): Platform => ({
+  platform: process.platform,
+  home: os.homedir(),
+  readFile: (p) => {
+    try {
+      return readFileSync(p, 'utf8');
+    } catch {
+      return undefined;
+    }
+  },
+});
+
+/**
+ * Default user folders: XDG user dirs on Linux (localized names such as ~/Descargas), the OneDrive
+ * known-folder redirection on Windows when present, otherwise ~/Downloads, ~/Documents and ~/Desktop.
+ */
+export function defaultUserDirs(env: Record<string, string | undefined>, p: Platform): Record<UserDir, string[]> {
+  const base = (k: UserDir) => [path.join(p.home, FALLBACK_NAMES[k])];
+  const dirs: Record<UserDir, string[]> = { DOWNLOAD: base('DOWNLOAD'), DOCUMENTS: base('DOCUMENTS'), DESKTOP: base('DESKTOP') };
+  if (p.platform === 'linux') {
+    const configHome = env.XDG_CONFIG_HOME || path.join(p.home, '.config');
+    const xdg = parseXdgUserDirs(p.readFile(path.join(configHome, 'user-dirs.dirs')) ?? '', p.home);
+    for (const k of Object.keys(xdg) as UserDir[]) dirs[k] = [xdg[k]!];
+  }
+  if (p.platform === 'win32' && env.OneDrive) {
+    // OneDrive may redirect Documents and Desktop; allow both locations (Downloads is never redirected).
+    dirs.DOCUMENTS.push(path.join(env.OneDrive, 'Documents'));
+    dirs.DESKTOP.push(path.join(env.OneDrive, 'Desktop'));
+  }
+  return dirs;
+}
+
+export function parseConfig(env: NodeJS.ProcessEnv, platform: Platform = realPlatform()): Config {
   const parsed = schema.safeParse(clean(env));
   if (!parsed.success) {
     const lines = parsed.error.issues.map((i) => `  - ${i.path.join('.') || 'config'}: ${i.message}`);
@@ -78,10 +133,11 @@ export function parseConfig(env: NodeJS.ProcessEnv): Config {
   }
   const e = parsed.data;
   const readOnly = truthy(e.OUTLOOK_READ_ONLY);
-  const downloadDir = path.resolve(expandHome(e.OUTLOOK_DOWNLOAD_DIR ?? path.join(os.homedir(), 'Downloads')));
+  const userDirs = defaultUserDirs(clean(env), platform);
+  const downloadDir = path.resolve(expandHome(e.OUTLOOK_DOWNLOAD_DIR ?? userDirs.DOWNLOAD[0]));
   const attachDirs = e.OUTLOOK_ATTACH_DIRS
     ? e.OUTLOOK_ATTACH_DIRS.split(path.delimiter).map((d) => d.trim()).filter(Boolean).map((d) => path.resolve(expandHome(d)))
-    : [downloadDir, path.join(os.homedir(), 'Documents'), path.join(os.homedir(), 'Desktop')];
+    : [...new Set([downloadDir, ...userDirs.DOCUMENTS, ...userDirs.DESKTOP].map((d) => path.resolve(d)))];
   return {
     clientId: e.OUTLOOK_CLIENT_ID,
     tenant: e.OUTLOOK_TENANT,
