@@ -1,9 +1,12 @@
 import fs from 'node:fs/promises';
+import { MAX_RETRY_AFTER_MS } from '../graph/client.js';
 
 /** Chunk size for upload sessions: 12 x 320 KiB (Graph requires a multiple of 320 KiB). */
 export const UPLOAD_CHUNK_BYTES = 12 * 320 * 1024;
 const MAX_CHUNK_ATTEMPTS = 4;
+// Chunk PUTs carry a Content-Range, so resending one is idempotent.
 const RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+const CHUNK_TIMEOUT_MS = 120_000;
 
 export interface UploadOptions {
   chunkBytes?: number;
@@ -37,11 +40,11 @@ export async function uploadFileInChunks(uploadUrl: string, filePath: string, si
         'Content-Type': 'application/octet-stream',
       };
       for (let attempt = 1; ; attempt++) {
-        const res = await fetch(uploadUrl, { method: 'PUT', headers, body: chunk });
+        const res = await fetch(uploadUrl, { method: 'PUT', headers, body: chunk, signal: AbortSignal.timeout(CHUNK_TIMEOUT_MS) });
         if (res.ok) break;
         if (RETRY_STATUS.has(res.status) && attempt < MAX_CHUNK_ATTEMPTS) {
           const ra = Number(res.headers.get('Retry-After'));
-          await sleep(Number.isFinite(ra) && ra > 0 ? ra * 1000 : 500 * 2 ** (attempt - 1));
+          await sleep(Number.isFinite(ra) && ra > 0 ? Math.min(ra * 1000, MAX_RETRY_AFTER_MS) : 500 * 2 ** (attempt - 1));
           continue;
         }
         throw new Error(`Upload failed with HTTP ${res.status} at bytes ${start}-${start + length - 1}.`);
