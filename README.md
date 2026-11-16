@@ -1,5 +1,12 @@
 <p align="center"><img src="https://raw.githubusercontent.com/Pepebits/outlook-mcp/main/docs/banner.png" alt="outlook-mcp" width="720"></p>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/@pepebits/outlook-mcp"><img src="https://img.shields.io/npm/v/@pepebits/outlook-mcp?color=cb3837&logo=npm" alt="npm version"></a>
+  <a href="https://github.com/Pepebits/outlook-mcp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Pepebits/outlook-mcp/ci.yml?branch=main&label=CI&logo=github" alt="CI status"></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@pepebits/outlook-mcp?color=5fa04e&logo=nodedotjs&logoColor=white" alt="Node version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/npm/l/@pepebits/outlook-mcp?color=blue" alt="License"></a>
+</p>
+
 A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Claude, Codex and any other MCP client read, search, send and organize your **Outlook / Microsoft 365 / Outlook.com** mail through the Microsoft Graph API.
 
 ---
@@ -12,11 +19,11 @@ A [Model Context Protocol](https://modelcontextprotocol.io) server that lets Cla
 
 - 📂 Browse folders, list and search messages (KQL), read bodies as sanitized plain text
 - 📎 List and download attachments safely into a configured directory
-- ✉️ Send mail, create drafts, reply, reply-all and forward (local attachments up to 150 MB; files of 3 MB or more are uploaded in chunks)
-- 🗂️ Move, mark read/unread, flag and delete messages, one at a time or in bulk (`ids`)
+- ✉️ Send mail, create drafts, reply, reply-all and forward, optionally from an alias (attachments up to 150 MB from allowed folders; larger ones are uploaded in chunks)
+- 🗂️ Move, mark read/unread, flag and delete messages, one at a time, in bulk (`ids`) or by search with a previewed `bulk_action`
 - 📰 Find newsletters, unsubscribe from them and block unwanted senders with inbox rules
-- 🔒 Read-only mode that removes every mutating tool
-- 🔁 Automatic retry with `Retry-After` / exponential backoff for throttling (429/503/504)
+- 🔒 Read-only mode enforced at three layers: tools, Graph client and sign-in scopes
+- 🔁 Automatic retry with `Retry-After` / exponential backoff for throttling, without ever resending a request that may already have been processed
 - 🧾 Logs only to stderr; never logs tokens or message bodies
 
 ## 📋 Requirements
