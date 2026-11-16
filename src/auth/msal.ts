@@ -61,18 +61,33 @@ export async function getFirstAccount(pca: PublicClientApplication): Promise<Acc
   return (await pca.getTokenCache().getAllAccounts())[0];
 }
 
-export async function getAccessToken(
+export interface AccessToken {
+  token: string;
+  /** Epoch milliseconds; undefined when MSAL did not report it. */
+  expiresAt?: number;
+}
+
+/** MSAL reports an unreachable token endpoint as a network error; that is not a reason to sign in again. */
+export function isNetworkFailure(err: unknown): boolean {
+  const e = err as { errorCode?: string; message?: string };
+  return /network|timed_out/i.test(e?.errorCode ?? '') || /ENOTFOUND|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|fetch failed|network/i.test(e?.message ?? '');
+}
+
+export async function getAccessTokenResult(
   pca: PublicClientApplication,
   cfg: Config,
   opts: { interactive: boolean },
-): Promise<string> {
+): Promise<AccessToken> {
   const account = await getFirstAccount(pca);
   if (account) {
     try {
       const res = await pca.acquireTokenSilent({ account, scopes: cfg.scopes });
-      if (res?.accessToken) return res.accessToken;
+      if (res?.accessToken) return { token: res.accessToken, expiresAt: res.expiresOn?.getTime() };
     } catch (err) {
       log.debug(`silent token acquisition failed: ${(err as Error).name}`);
+      if (isNetworkFailure(err)) {
+        throw new Error('Could not reach the Microsoft sign-in service to refresh the session. Check the network connection and retry; signing in again is not needed.');
+      }
     }
   }
   if (!opts.interactive) throw new AuthRequiredError();
@@ -82,5 +97,17 @@ export async function getAccessToken(
     deviceCodeCallback: (r) => process.stderr.write(`\n${r.message}\n\n`),
   });
   if (!res?.accessToken) throw new AuthRequiredError('Device code sign-in did not return a token.');
-  return res.accessToken;
+  return { token: res.accessToken, expiresAt: res.expiresOn?.getTime() };
+}
+
+export async function getAccessToken(pca: PublicClientApplication, cfg: Config, opts: { interactive: boolean }): Promise<string> {
+  return (await getAccessTokenResult(pca, cfg, opts)).token;
+}
+
+/** Removes every cached account except `keep`, so a forced sign-in with another account takes effect. */
+export async function keepOnlyAccount(pca: PublicClientApplication, keep: AccountInfo): Promise<void> {
+  const cache = pca.getTokenCache();
+  for (const account of await cache.getAllAccounts()) {
+    if (account.homeAccountId !== keep.homeAccountId) await cache.removeAccount(account);
+  }
 }

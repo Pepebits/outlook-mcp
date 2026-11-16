@@ -268,6 +268,19 @@ describe('MacKeychainBackend', () => {
     expect(await b.get()).toBe('{"a":2}');
   });
 
+  it('removes the new chunks when a write fails half way and keeps the previous cache', async () => {
+    const f = fakeSecurity();
+    const b = new MacKeychainBackend('/tmp/t.json', f.exec);
+    await b.set('{"a":1}');
+    const before = new Map(f.store);
+    let adds = 0;
+    f.hook.fn = (args) => (args[0] === '-i' && ++adds === 2 ? { code: 1, stdout: '', stderr: 'write failed' } : undefined);
+    await expect(b.set(JSON.stringify({ big: 'x'.repeat(9000) }))).rejects.toThrow(/write failed/);
+    f.hook.fn = undefined;
+    expect(f.store).toEqual(before);
+    expect(await b.get()).toBe('{"a":1}');
+  });
+
   it('retries once when a concurrent write replaces the generation being read', async () => {
     const f = fakeSecurity();
     const b = new MacKeychainBackend('/tmp/t.json', f.exec);
