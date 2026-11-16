@@ -51,6 +51,8 @@ const composeShape = {
   subject: z.string(),
   body: z.string(),
   bodyType: z.enum(['text', 'html']).optional().describe('Default text'),
+  from: z.string().email().optional().describe('From address: must be the signed-in mailbox or one of its aliases / SendAs identities'),
+  fromName: z.string().max(100).optional().describe('Display name shown with the From address (e.g. Fox)'),
   attachments: z.array(z.object({ path: z.string() })).optional().describe('Local files (up to 150 MB each; files of 3 MB or more are sent through an upload session)'),
 };
 
@@ -62,6 +64,7 @@ async function buildMessage(a: any) {
     ccRecipients: toRecipients(a.cc),
     bccRecipients: toRecipients(a.bcc),
   };
+  if (a.from) message.from = { emailAddress: { address: a.from, ...(a.fromName ? { name: a.fromName } : {}) } };
   const { inline, large } = await buildAttachments(a.attachments);
   if (inline.length) message.attachments = inline;
   return { message, large };
